@@ -1,59 +1,411 @@
-body {
-    font-family: "Segoe UI", sans-serif;
+:root {
+    --dc-ink: #2f241f;
+    --dc-muted: #74635b;
+    --dc-paper: #fff8ef;
+    --dc-panel: #ffffff;
+    --dc-saffron: #f59f00;
+    --dc-coral: #f06543;
+    --dc-rose: #d94863;
+    --dc-teal: #008b7a;
+    --dc-leaf: #63a375;
+    --dc-blue: #2f80ed;
+    --dc-shadow: 0 18px 45px rgba(101, 72, 47, 0.16);
 }
 
-.hero {
-    background: #f5f7fa;
-    border-radius: 25px;
-    padding: 25px;
-    text-align: center;
+body,
+.gradio-container {
+    background:
+        radial-gradient(circle at top left, rgba(245, 159, 0, 0.2), transparent 34rem),
+        linear-gradient(135deg, #fff8ef 0%, #fff0dc 48%, #fdf8f1 100%);
+    color: var(--dc-ink);
+    font-family: "Segoe UI", "Noto Sans Bengali", "Noto Sans Devanagari", Arial, sans-serif;
+    font-size: 20px;
+}
+
+.gradio-container {
+    max-width: 1220px !important;
+    padding: 28px !important;
+}
+
+.dc-hero,
+.dc-schedule-panel,
+.dc-action-tile,
+.dc-input-card,
+.dc-family-strip {
+    border-radius: 28px;
+    box-shadow: var(--dc-shadow);
+}
+
+.dc-hero {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    min-height: 190px;
+    margin-bottom: 22px;
+    padding: 34px;
+    background: linear-gradient(135deg, #ffcf70 0%, #ff8a65 55%, #d94863 100%);
+    color: #fffdf8;
+}
+
+.dc-kicker {
+    margin: 0 0 8px;
+    color: inherit;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    opacity: 0.86;
+}
+
+.dc-hero h1,
+.dc-panel-heading h2,
+.dc-action-tile h2,
+.dc-input-heading h2 {
+    margin: 0;
+    letter-spacing: 0;
+}
+
+.dc-hero h1 {
+    font-size: clamp(3rem, 8vw, 5.8rem);
+    line-height: 0.95;
+    font-weight: 900;
+}
+
+.dc-subtitle {
+    max-width: 720px;
+    margin: 14px 0 0;
+    font-size: clamp(1.25rem, 3vw, 1.8rem);
+    line-height: 1.25;
+    color: #fffdf8;
+}
+
+.dc-mode-pill {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 250px;
+    padding: 18px 22px;
+    border: 3px solid rgba(255, 255, 255, 0.72);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.2);
+    font-size: 1.2rem;
+    font-weight: 800;
+}
+
+.dc-mode-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: #2bd96b;
+    box-shadow: 0 0 0 8px rgba(43, 217, 107, 0.2);
+}
+
+.dc-dashboard-row {
+    gap: 22px;
+    align-items: stretch;
+    margin-bottom: 22px;
+}
+
+.dc-dashboard-row > .gradio-column {
+    min-width: 0;
+}
+
+.dc-schedule-panel {
+    padding: 26px;
+    background: var(--dc-panel);
+    border: 4px solid rgba(245, 159, 0, 0.28);
+}
+
+.dc-panel-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
     margin-bottom: 20px;
 }
 
-.tile {
-    height: 220px;
-    border-radius: 20px;
-    color: white;
+.dc-panel-heading .dc-kicker {
+    color: var(--dc-coral);
+}
+
+.dc-panel-heading h2 {
+    font-size: clamp(2.2rem, 5vw, 3.8rem);
+    line-height: 1;
+    color: var(--dc-ink);
+}
+
+.dc-next-dose {
+    min-width: 150px;
+    padding: 16px 20px;
+    border-radius: 22px;
+    background: #2f241f;
+    color: #fff8ef;
     text-align: center;
-    padding-top: 30px;
-    box-shadow: 0px 6px 15px rgba(0,0,0,0.15);
 }
 
-.tile-icon {
-    font-size: 60px;
+.dc-next-dose span,
+.dc-next-dose strong {
+    display: block;
 }
 
-.tile-title {
-    font-size: 28px;
-    font-weight: bold;
-    margin-top: 20px;
+.dc-next-dose span {
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.78;
 }
 
-.tile-subtitle {
-    font-size: 18px;
-    margin-top: 10px;
+.dc-next-dose strong {
+    font-size: 1.7rem;
+    line-height: 1.1;
 }
 
-.red {
-    background: #ef5350;
+.dc-schedule-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 16px;
 }
 
-.orange {
-    background: #fb8c00;
+.dc-dose-tile {
+    min-height: 260px;
+    padding: 22px;
+    border-radius: 24px;
+    color: #fffdf8;
+    background: var(--dc-teal);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
-.blue {
-    background: #42a5f5;
+.dc-dose-tile:nth-child(2) {
+    background: var(--dc-blue);
 }
 
-.green {
-    background: #43a047;
+.dc-dose-tile:nth-child(3) {
+    background: var(--dc-leaf);
 }
 
-.purple {
-    background: #8e24aa;
+.dc-dose-active {
+    background: var(--dc-rose);
+    outline: 5px solid rgba(217, 72, 99, 0.24);
 }
 
-.teal {
-    background: #00897b;
+.dc-dose-time,
+.dc-dose-icon,
+.dc-action-tile span {
+    font-weight: 900;
+}
+
+.dc-dose-time {
+    font-size: 1.15rem;
+}
+
+.dc-dose-icon {
+    width: fit-content;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.24);
+    font-size: 1rem;
+}
+
+.dc-dose-tile h3 {
+    margin: 26px 0 8px;
+    font-size: clamp(1.8rem, 4vw, 2.5rem);
+    line-height: 1.02;
+    letter-spacing: 0;
+}
+
+.dc-dose-tile p,
+.dc-action-tile p,
+.dc-input-heading p {
+    margin: 0;
+    line-height: 1.3;
+}
+
+.dc-dose-tile p {
+    font-size: 1.15rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.dc-side-stack {
+    gap: 22px;
+}
+
+.dc-action-tile {
+    min-height: 245px;
+    padding: 26px;
+    color: #fffdf8;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.dc-voice-tile {
+    background: linear-gradient(135deg, #008b7a, #00a6a6);
+}
+
+.dc-grandma-tile {
+    background: linear-gradient(135deg, #7c3aed, #d94863);
+}
+
+.dc-tile-icon {
+    width: fit-content;
+    min-width: 58px;
+    padding: 12px 14px;
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.26);
+    color: inherit;
+    font-size: 1.05rem;
+    font-weight: 900;
+    text-align: center;
+}
+
+.dc-action-tile h2 {
+    font-size: clamp(2rem, 4vw, 3.2rem);
+    line-height: 1;
+}
+
+.dc-action-tile p {
+    font-size: 1.24rem;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.dc-action-tile span {
+    display: inline-flex;
+    width: fit-content;
+    padding: 12px 18px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.22);
+    font-size: 1.06rem;
+}
+
+.dc-input-row {
+    align-items: stretch;
+}
+
+.dc-input-card {
+    padding: 24px;
+    background: rgba(255, 255, 255, 0.86);
+    border: 2px solid rgba(116, 99, 91, 0.1);
+}
+
+.dc-input-heading {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 18px;
+}
+
+.dc-input-heading .dc-tile-icon {
+    background: #fff0dc;
+    color: var(--dc-coral);
+}
+
+.dc-input-heading h2 {
+    font-size: clamp(1.7rem, 4vw, 2.5rem);
+    color: var(--dc-ink);
+}
+
+.dc-input-heading p {
+    color: var(--dc-muted);
+    font-size: 1.08rem;
+}
+
+.dc-prescription-input,
+.dc-language-radio {
+    font-size: 1.2rem;
+}
+
+.dc-prescription-input .image-container,
+.dc-prescription-input .wrap {
+    border-radius: 22px !important;
+}
+
+.dc-language-radio label {
+    min-height: 64px;
+    padding: 14px 18px !important;
+    border-radius: 18px !important;
+    font-size: 1.3rem !important;
+}
+
+.dc-family-strip {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 20px 24px;
+    background: #2f241f;
+    color: #fff8ef;
+    font-size: 1.14rem;
+}
+
+.dc-family-strip strong {
+    font-size: 1.2rem;
+    color: #ffcf70;
+}
+
+button,
+input,
+textarea,
+select {
+    font-size: 1.08rem !important;
+}
+
+@media (max-width: 980px) {
+    .gradio-container {
+        padding: 18px !important;
+    }
+
+    .dc-hero,
+    .dc-panel-heading,
+    .dc-family-strip {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .dc-mode-pill,
+    .dc-next-dose {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .dc-schedule-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .dc-dose-tile,
+    .dc-action-tile {
+        min-height: 220px;
+    }
+}
+
+@media (max-width: 640px) {
+    body,
+    .gradio-container {
+        font-size: 18px;
+    }
+
+    .dc-hero,
+    .dc-schedule-panel,
+    .dc-action-tile,
+    .dc-input-card,
+    .dc-family-strip {
+        border-radius: 20px;
+    }
+
+    .dc-hero,
+    .dc-schedule-panel,
+    .dc-action-tile,
+    .dc-input-card {
+        padding: 20px;
+    }
+
+    .dc-input-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .dc-language-radio label {
+        width: 100%;
+    }
 }
