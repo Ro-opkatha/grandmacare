@@ -1,0 +1,59 @@
+body {
+    font-family: "Segoe UI", sans-serif;
+}
+
+.hero {
+    background: #f5f7fa;
+    border-radius: 25px;
+    padding: 25px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.tile {
+    height: 220px;
+    border-radius: 20px;
+    color: white;
+    text-align: center;
+    padding-top: 30px;
+    box-shadow: 0px 6px 15px rgba(0,0,0,0.15);
+}
+
+.tile-icon {
+    font-size: 60px;
+}
+
+.tile-title {
+    font-size: 28px;
+    font-weight: bold;
+    margin-top: 20px;
+}
+
+.tile-subtitle {
+    font-size: 18px;
+    margin-top: 10px;
+}
+
+.red {
+    background: #ef5350;
+}
+
+.orange {
+    background: #fb8c00;
+}
+
+.blue {
+    background: #42a5f5;
+}
+
+.green {
+    background: #43a047;
+}
+
+.purple {
+    background: #8e24aa;
+}
+
+.teal {
+    background: #00897b;
+}
