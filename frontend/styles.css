@@ -57,3 +57,9 @@ body {
 .teal {
     background: #00897b;
 }
+
+.whit {
+    background: #f5f7fa;
+    color: #1f2937;
+    margin-bottom: 20px;
+}
