@@ -1,3 +1,14 @@
+---
+title: GrandmaCare
+emoji: 👵
+colorFrom: red
+colorTo: green
+sdk: gradio
+sdk_version: 6.16.0
+app_file: app.py
+python_version: 3.12
+---
+
 # 👵 GrandmaCare
 
 **AI-powered multilingual medicine assistant for elderly users**
@@ -54,7 +65,7 @@ for easier adherence.
 
 ### 🔊 Voice Assistance
 
-Read medication instructions aloud for elderly users who may have difficulty reading small text.
+Coming later: the MVP keeps romanized text ready for future VoxCPM-powered speech.
 
 ### 👴 Senior-Friendly Interface
 
@@ -84,7 +95,7 @@ Structured Medication Schedule
 Multilingual Instruction Generation
 
 ↓
-Voice Guidance & User Interface
+Romanized Guidance & User Interface
 
 ---
 
@@ -97,13 +108,14 @@ Voice Guidance & User Interface
 
 ### AI Models
 
-* OpenBMB MiniCPM-V
+* OpenBMB MiniCPM-V 4.6
+* CohereLabs tiny-aya-global
 
 ### Additional Components
 
 * Multilingual instruction generation
-* Text-to-Speech (TTS)
 * Medication schedule engine
+* Romanized text seam for future Text-to-Speech (TTS)
 
 ---
 
