@@ -1,37 +1,176 @@
 body {
-    font-family: "Segoe UI", sans-serif;
+    font-family: "Segoe UI", Arial, sans-serif;
 }
 
 .hero {
     background: #f5f7fa;
-    border-radius: 25px;
+    border-radius: 22px;
     padding: 25px;
     text-align: center;
     margin-bottom: 20px;
 }
 
+.hero h1 {
+    font-size: 44px;
+    margin: 0 0 8px;
+}
+
+.hero h3 {
+    font-size: 24px;
+    margin: 0 0 8px;
+}
+
+.hero p {
+    font-size: 18px;
+    margin: 0;
+}
+
 .tile {
-    height: 220px;
     border-radius: 20px;
     color: white;
     text-align: center;
-    padding-top: 30px;
-    box-shadow: 0px 6px 15px rgba(0,0,0,0.15);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.control-tile {
+    min-height: 190px;
+    padding: 28px 18px;
+}
+
+.schedule-tile {
+    min-height: 320px;
+    padding: 24px 18px;
 }
 
 .tile-icon {
-    font-size: 60px;
+    font-size: 54px;
+    line-height: 1;
+}
+
+.tile-icon::before {
+    display: inline-block;
+}
+
+.document::before {
+    content: "📄";
+}
+
+.globe::before {
+    content: "🌐";
+}
+
+.sun::before {
+    content: "☀";
+}
+
+.clock::before {
+    content: "🕑";
+}
+
+.sunset::before {
+    content: "🌆";
+}
+
+.moon::before {
+    content: "🌙";
+}
+
+.glasses::before {
+    content: "👓";
 }
 
 .tile-title {
-    font-size: 28px;
-    font-weight: bold;
-    margin-top: 20px;
+    font-size: 30px;
+    font-weight: 700;
+    margin-top: 16px;
 }
 
 .tile-subtitle {
-    font-size: 18px;
+    font-size: 19px;
+    margin-top: 8px;
+}
+
+.status-box textarea {
+    font-size: 18px !important;
+    font-weight: 600;
+}
+
+.medicine-list {
+    display: grid;
+    gap: 12px;
+    margin-top: 18px;
+}
+
+.medicine-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 14px;
+    color: #243142;
+    padding: 16px;
+    text-align: left;
+}
+
+.medicine-name {
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.15;
+}
+
+.medicine-dose {
+    color: #5a6575;
+    font-size: 21px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.medicine-instruction {
+    font-size: 21px;
+    line-height: 1.35;
+    margin-top: 12px;
+}
+
+.medicine-romanized {
+    background: #eef3f8;
+    border-radius: 10px;
+    color: #29384d;
+    font-size: 20px;
+    line-height: 1.35;
     margin-top: 10px;
+    padding: 10px;
+}
+
+.medicine-note {
+    border-top: 1px solid #d7dde6;
+    color: #5a6575;
+    font-size: 18px;
+    line-height: 1.35;
+    margin-top: 12px;
+    padding-top: 10px;
+}
+
+.empty-state {
+    background: rgba(255, 255, 255, 0.22);
+    border: 1px solid rgba(255, 255, 255, 0.38);
+    border-radius: 14px;
+    font-size: 21px;
+    font-weight: 700;
+    margin-top: 18px;
+    padding: 28px 16px;
+}
+
+.voice-button {
+    min-height: 190px !important;
+    border: 0 !important;
+    border-radius: 20px !important;
+    background: #8e24aa !important;
+    color: white !important;
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15) !important;
+    font-size: 28px !important;
+    font-weight: 800 !important;
+    white-space: pre-line !important;
+}
+
+.voice-button:hover {
+    background: #7b1fa2 !important;
 }
 
 .red {
@@ -58,4 +197,16 @@ body {
     background: #00897b;
 }
 
+@media (max-width: 720px) {
+    .hero h1 {
+        font-size: 36px;
+    }
 
+    .tile-title {
+        font-size: 26px;
+    }
+
+    .medicine-name {
+        font-size: 24px;
+    }
+}

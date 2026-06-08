@@ -62,7 +62,7 @@ for easier adherence.
 
 ### 🔊 Voice Assistance
 
-Read medication instructions aloud for elderly users who may have difficulty reading small text.
+Coming later: the MVP keeps romanized text ready for future VoxCPM-powered speech.
 
 ### 👴 Senior-Friendly Interface
 
@@ -92,7 +92,7 @@ Structured Medication Schedule
 Multilingual Instruction Generation
 
 ↓
-Voice Guidance & User Interface
+Romanized Guidance & User Interface
 
 ---
 
@@ -105,13 +105,14 @@ Voice Guidance & User Interface
 
 ### AI Models
 
-* OpenBMB MiniCPM-V
+* OpenBMB MiniCPM-V 4.6
+* CohereLabs tiny-aya-global
 
 ### Additional Components
 
 * Multilingual instruction generation
-* Text-to-Speech (TTS)
 * Medication schedule engine
+* Romanized text seam for future Text-to-Speech (TTS)
 
 ---
 
