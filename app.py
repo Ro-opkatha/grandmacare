@@ -6,7 +6,7 @@ with gr.Blocks(
 ) as demo:
 
     gr.HTML("""
-    <div class="hero">
+    <div class="tile white">
         <h1>👵 DidaCare</h1>
         <h3>Your Medicine Companion</h3>
         <p>Helping grandparents understand medicines confidently.</p>
