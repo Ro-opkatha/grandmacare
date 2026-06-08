@@ -1,3 +1,11 @@
+---
+title: GrandmaCare
+sdk: gradio
+sdk_version: 6.16.0
+app_file: app.py
+pinned: false
+---
+
 # 👵 GrandmaCare
 
 **AI-powered multilingual medicine assistant for elderly users**
