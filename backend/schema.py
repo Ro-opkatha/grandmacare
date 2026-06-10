@@ -9,6 +9,21 @@ def empty_schedule():
     return {"medicines": []}
 
 
+def _clean_quantities(value):
+    quantities = {}
+    if not isinstance(value, dict):
+        return quantities
+    for bucket, qty in value.items():
+        bucket_name = str(bucket).strip().lower()
+        if bucket_name not in TIME_BUCKETS:
+            continue
+        try:
+            quantities[bucket_name] = float(qty)
+        except (TypeError, ValueError):
+            continue
+    return quantities
+
+
 def normalize_schedule(payload):
     medicines = []
     if not isinstance(payload, dict):
@@ -33,6 +48,12 @@ def normalize_schedule(payload):
                 "name": str(item.get("name") or "Medicine").strip(),
                 "dose": str(item.get("dose") or "Dose not listed").strip(),
                 "schedule": normalized_buckets,
+                "quantities": _clean_quantities(item.get("quantities")),
+                "as_needed": bool(item.get("as_needed")),
+                "meal_relation": str(item.get("meal_relation") or "").strip(),
+                "duration": str(item.get("duration") or "").strip(),
+                "frequency_raw": str(item.get("frequency_raw") or "").strip(),
+                "needs_review": bool(item.get("needs_review")),
                 "notes": str(item.get("notes") or "").strip(),
                 "instruction": str(item.get("instruction") or "").strip(),
                 "romanized": str(item.get("romanized") or "").strip(),
@@ -42,10 +63,7 @@ def normalize_schedule(payload):
     return {"medicines": medicines}
 
 
-def parse_model_json(text):
-    if isinstance(text, dict):
-        return normalize_schedule(text)
-
+def _extract_json(text):
     raw = str(text or "").strip()
     if not raw:
         raise ValueError("The model returned an empty response.")
@@ -60,9 +78,26 @@ def parse_model_json(text):
             raw = raw[start : end + 1]
 
     try:
-        return normalize_schedule(json.loads(raw))
+        return json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ValueError("The model response was not valid JSON.") from exc
+
+
+def parse_raw_json(text):
+    """Lenient JSON extraction with NO schedule normalization.
+
+    Used for the transcription step, where the payload carries raw notation
+    fields (frequency_raw, meal_raw, ...) that normalize_schedule would drop.
+    """
+    if isinstance(text, dict):
+        return text
+    return _extract_json(text)
+
+
+def parse_model_json(text):
+    if isinstance(text, dict):
+        return normalize_schedule(text)
+    return normalize_schedule(_extract_json(text))
 
 
 def merge_translation(schedule, translated):

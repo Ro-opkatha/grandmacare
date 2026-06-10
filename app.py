@@ -4,7 +4,12 @@ import gradio as gr
 import spaces
 
 from backend.models import analyze_prescription
-from backend.render import initial_bucket, render_all_buckets
+from backend.render import (
+    initial_bucket,
+    initial_extras,
+    render_all_buckets,
+    render_extras,
+)
 
 
 def voice_coming_later():
@@ -18,7 +23,7 @@ def analyze(image_path, language):
         buckets = render_all_buckets(schedule)
         status = "Prescription analyzed. Please confirm the schedule with a doctor or pharmacist."
         debug_json = json.dumps(schedule, ensure_ascii=False, indent=2)
-        return [status, debug_json, *buckets]
+        return [status, debug_json, *buckets, render_extras(schedule)]
     except Exception as exc:
         message = f"Sorry, I could not analyze this image yet: {exc}"
         return [
@@ -28,6 +33,7 @@ def analyze(image_path, language):
             initial_bucket("afternoon"),
             initial_bucket("evening"),
             initial_bucket("night"),
+            initial_extras(),
         ]
 
 
@@ -90,6 +96,8 @@ with gr.Blocks(
         evening = gr.HTML(initial_bucket("evening"))
         night = gr.HTML(initial_bucket("night"))
 
+    extras = gr.HTML(initial_extras())
+
     with gr.Row():
         voice_button = gr.Button(
             "🔊\nVoice Guide\nComing Later",
@@ -117,7 +125,7 @@ with gr.Blocks(
     analyze_button.click(
         analyze,
         inputs=[prescription, language],
-        outputs=[status, debug, morning, afternoon, evening, night],
+        outputs=[status, debug, morning, afternoon, evening, night, extras],
     )
     voice_button.click(voice_coming_later, outputs=voice_status)
 

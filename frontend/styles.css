@@ -79,6 +79,14 @@ body {
     content: "👓";
 }
 
+.star::before {
+    content: "⭐";
+}
+
+.question::before {
+    content: "🤔";
+}
+
 .tile-title {
     font-size: 30px;
     font-weight: 700;
@@ -136,6 +144,53 @@ body {
     line-height: 1.35;
     margin-top: 10px;
     padding: 10px;
+}
+
+.medicine-qty {
+    color: #1f6fbf;
+    font-size: 21px;
+    font-weight: 800;
+    margin-top: 6px;
+}
+
+.medicine-meta {
+    color: #5a6575;
+    font-size: 19px;
+    font-weight: 700;
+    margin-top: 4px;
+}
+
+.review-badge {
+    background: #fff3d6;
+    border: 1px solid #f0c36d;
+    border-radius: 10px;
+    color: #7a5200;
+    font-size: 19px;
+    font-weight: 700;
+    line-height: 1.35;
+    margin-top: 10px;
+    padding: 10px 12px;
+}
+
+.frequency-raw {
+    background: #ffe7b3;
+    border-radius: 8px;
+    display: inline-block;
+    font-family: Consolas, monospace;
+    font-size: 18px;
+    margin-left: 6px;
+    padding: 2px 8px;
+}
+
+.extras-row {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    margin-top: 16px;
+}
+
+.amber {
+    background: #f0a929;
 }
 
 .medicine-note {

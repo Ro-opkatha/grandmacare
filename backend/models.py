@@ -5,7 +5,8 @@ os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
 
 from huggingface_hub import hf_hub_download
 
-from backend.schema import merge_translation, parse_model_json
+from backend.normalize import normalize_transcription
+from backend.schema import merge_translation, parse_model_json, parse_raw_json
 
 
 MINICPM_MODEL_ID = "openbmb/MiniCPM-V-4_6"
@@ -60,25 +61,28 @@ def extract_medicines(image_path):
     model, processor = _load_vision_model()
     image = Image.open(image_path).convert("RGB")
     prompt = """
-You are helping an elderly patient understand a prescription photo.
-Read the prescription or medicine label and return JSON only.
+You are transcribing a prescription or medicine label photo.
+Report ONLY what is literally written. Do not interpret anything.
 
 Use exactly this schema:
 {
   "medicines": [
     {
-      "name": "medicine name",
-      "dose": "dose or strength",
-      "schedule": ["morning", "afternoon", "evening", "night"],
-      "notes": "short plain-language note"
+      "name": "medicine name as written",
+      "dose": "strength as written, e.g. 40 mg",
+      "frequency_raw": "timing EXACTLY as written, e.g. 1-0-1, BD, TDS, OD HS",
+      "meal_raw": "any before/after food instruction exactly as written, e.g. AC, after food",
+      "duration_raw": "any duration exactly as written, e.g. x 5 days",
+      "notes": "anything else readable and relevant"
     }
   ]
 }
 
 Rules:
-- The schedule values must only be morning, afternoon, evening, or night.
+- Copy notation character-for-character (e.g. write "1-0-1", not "twice a day").
+- Do NOT interpret or expand abbreviations like OD, BD, TDS, AC, PC, SOS.
 - Include a medicine only if you can read it from the image.
-- If dose or notes are unclear, use a short uncertainty note.
+- Use an empty string for any field that is not written on the prescription.
 - Do not add markdown, comments, or text outside JSON.
 """
     messages = [
@@ -102,11 +106,11 @@ Rules:
     input_token_count = inputs["input_ids"].shape[-1]
     generated_ids = output_ids[:, input_token_count:]
     text = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
-    schedule = parse_model_json(text)
+    transcription = parse_raw_json(text)
 
-    if not schedule["medicines"]:
+    if not isinstance(transcription, dict) or not transcription.get("medicines"):
         raise ValueError("I could not find any readable medicines in that image.")
-    return schedule
+    return transcription
 
 
 def translate_schedule(schedule, language):
@@ -139,6 +143,12 @@ Return JSON only using this exact schema:
       "name": "same medicine name",
       "dose": "same dose",
       "schedule": ["morning"],
+      "quantities": {{"morning": 1}},
+      "as_needed": false,
+      "meal_relation": "same meal_relation",
+      "duration": "same duration",
+      "frequency_raw": "same frequency_raw",
+      "needs_review": false,
       "notes": "same notes",
       "instruction": "simple instruction in {language_name} using {language_script} script",
       "romanized": "romanized version of the instruction"
@@ -146,7 +156,14 @@ Return JSON only using this exact schema:
   ]
 }}
 
-Keep the same medicine order, names, doses, schedules, and notes.
+Write each instruction from the structured fields:
+- Use the schedule and quantities for when and how much (0.5 means "half tablet").
+- If meal_relation is before_food, after_food, or with_food, say so simply.
+- If duration is set, mention it (e.g. "for 5 days").
+- If as_needed is true, say to take it only when needed, as the doctor advised.
+- If needs_review is true, say the timing is unclear and to confirm with the pharmacist.
+
+Keep the same medicine order and copy every field except instruction and romanized unchanged.
 Use warm, direct, senior-friendly language.
 Do not give medical advice beyond the prescription details.
 
@@ -164,5 +181,6 @@ Prescription JSON:
 
 
 def analyze_prescription(image_path, language):
-    schedule = extract_medicines(image_path)
-    return translate_schedule(schedule, language)
+    raw = extract_medicines(image_path)            # transcription-only JSON
+    schedule = normalize_transcription(raw)        # deterministic interpretation
+    return translate_schedule(schedule, language)  # Aya phrasing, unchanged role
