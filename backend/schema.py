@@ -4,6 +4,23 @@ import re
 
 TIME_BUCKETS = ("morning", "afternoon", "evening", "night")
 
+SCRIPT_RANGES = {
+    "Devanagari": (0x0900, 0x097F),
+    "Bengali": (0x0980, 0x09FF),
+}
+
+
+def uses_expected_script(text, script_name):
+    """True if the text contains at least one character of the expected
+    script. Guards against the translator answering in the wrong language;
+    scripts without a mapped range only require non-empty text."""
+    text = str(text or "")
+    bounds = SCRIPT_RANGES.get(script_name)
+    if bounds is None:
+        return bool(text.strip())
+    low, high = bounds
+    return any(low <= ord(char) <= high for char in text)
+
 
 def empty_schedule():
     return {"medicines": []}

@@ -118,6 +118,7 @@ body {
 }
 
 .medicine-name {
+    color: #16202e;
     font-size: 26px;
     font-weight: 800;
     line-height: 1.15;
@@ -131,6 +132,7 @@ body {
 }
 
 .medicine-instruction {
+    color: #243142;
     font-size: 21px;
     line-height: 1.35;
     margin-top: 12px;

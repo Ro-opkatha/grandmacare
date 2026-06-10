@@ -34,6 +34,19 @@ MEAL_AFTER = {"pc", "p.c", "p/c", "after food", "after meal", "after meals",
               "after breakfast", "after dinner", "after lunch"}
 MEAL_WITH = {"with food", "with meal", "with meals", "cf", "c.f"}
 
+BUCKET_PHRASES = {
+    "morning": "in the morning",
+    "afternoon": "in the afternoon",
+    "evening": "in the evening",
+    "night": "at night",
+}
+
+MEAL_PHRASES = {
+    "before_food": "before food",
+    "after_food": "after food",
+    "with_food": "with food",
+}
+
 # e.g. 1-0-1, 1/2-0-1, 1-1-1-1, 1–0–1 (en dash), 1 - 0 - 1
 _PATTERN_RE = re.compile(
     r"(?<![\w/])((?:\d+(?:/\d+)?|½)(?:\s*[-–—]\s*(?:\d+(?:/\d+)?|½)){2,3})(?![\w/])"
@@ -41,6 +54,21 @@ _PATTERN_RE = re.compile(
 _DURATION_RE = re.compile(
     r"(?:x|for|×)\s*(\d+)\s*(day|days|din|week|weeks|month|months)", re.IGNORECASE
 )
+
+
+def format_quantity(quantity):
+    """0.5 -> ½, 1.0 -> 1, 1.5 -> 1½, anything else -> trimmed decimal."""
+    try:
+        quantity = float(quantity)
+    except (TypeError, ValueError):
+        return ""
+    whole = int(quantity)
+    fraction = quantity - whole
+    if abs(fraction - 0.5) < 1e-9:
+        return f"{whole}½" if whole else "½"
+    if abs(fraction) < 1e-9:
+        return str(whole)
+    return f"{quantity:g}"
 
 
 def _slot_value(token):
@@ -144,6 +172,77 @@ def interpret_duration(raw):
     return f"{count} {unit}"
 
 
+def _rescue_dose_pattern(item):
+    """Doctors squeeze 1-0-1 next to the name or dose, and the transcription
+    then puts it in the wrong field. Accept ONLY an explicit slot pattern with
+    believable tablet counts — never abbreviations, which false-positive on
+    ordinary words ("on", "om") — from the other transcribed fields."""
+    for field in ("dose", "meal_raw", "duration_raw", "notes", "name"):
+        match = _PATTERN_RE.search(str(item.get(field) or ""))
+        if not match:
+            continue
+        parsed = parse_dose_pattern(match.group(1))
+        if not parsed or not parsed["buckets"]:
+            continue
+        if max(parsed["quantities"].values()) > 2:
+            continue  # 12-05-25 is a date, not a dose
+        parsed["pattern"] = match.group(1)
+        return parsed
+    return None
+
+
+def _join_phrases(phrases):
+    if len(phrases) == 1:
+        return phrases[0]
+    return ", ".join(phrases[:-1]) + " and " + phrases[-1]
+
+
+def build_instruction(medicine):
+    """Deterministic English instruction from the structured fields.
+
+    The language model only ever translates this sentence — it must never
+    compose dosing text itself, especially for needs_review medicines."""
+    if medicine.get("needs_review"):
+        return (
+            "The timing for this medicine is not clear from the prescription. "
+            "Please ask your pharmacist or doctor before taking it."
+        )
+
+    extras = []
+    meal = MEAL_PHRASES.get(medicine.get("meal_relation", ""))
+    if meal:
+        extras.append(meal)
+    duration = medicine.get("duration", "")
+    if duration:
+        extras.append(f"for {duration}")
+    suffix = ", " + ", ".join(extras) if extras else ""
+
+    if medicine.get("as_needed"):
+        return (
+            "Take this medicine only when you need it, "
+            f"as your doctor advised{suffix}."
+        )
+
+    schedule = medicine.get("schedule", [])
+    if not schedule:
+        return "Please ask your pharmacist how to take this medicine."
+
+    quantities = medicine.get("quantities") or {}
+    phrases = []
+    for bucket in schedule:
+        when = BUCKET_PHRASES.get(bucket, bucket)
+        if bucket in quantities:
+            amount = format_quantity(quantities[bucket])
+            unit = "tablet" if amount in ("½", "1") else "tablets"
+            phrases.append(f"{amount} {unit} {when}")
+        else:
+            phrases.append(when)
+
+    if quantities:
+        return f"Take {_join_phrases(phrases)}{suffix}."
+    return f"Take this medicine {_join_phrases(phrases)}{suffix}."
+
+
 def normalize_medicine(item):
     """Takes one transcribed medicine dict from MiniCPM-V:
       {name, dose, frequency_raw, meal_raw, duration_raw, notes}
@@ -153,6 +252,15 @@ def normalize_medicine(item):
         str(item.get(k) or "") for k in ("frequency_raw", "meal_raw", "duration_raw", "notes")
     )
     freq = interpret_frequency(raw_freq)
+
+    if not freq["understood"] and not freq["as_needed"]:
+        rescued = _rescue_dose_pattern(item)
+        if rescued:
+            freq["buckets"] = rescued["buckets"]
+            freq["quantities"] = rescued["quantities"]
+            freq["understood"] = True
+            if not raw_freq.strip():
+                raw_freq = rescued["pattern"]
 
     needs_review = not freq["understood"]
     notes = str(item.get("notes") or "").strip()

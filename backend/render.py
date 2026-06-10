@@ -1,5 +1,6 @@
 from html import escape
 
+from backend.normalize import format_quantity
 from backend.schema import TIME_BUCKETS
 
 
@@ -15,21 +16,6 @@ MEAL_LABELS = {
     "after_food": "After food",
     "with_food": "With food",
 }
-
-
-def format_quantity(quantity):
-    """0.5 -> ½, 1.0 -> 1, 1.5 -> 1½, anything else -> trimmed decimal."""
-    try:
-        quantity = float(quantity)
-    except (TypeError, ValueError):
-        return ""
-    whole = int(quantity)
-    fraction = quantity - whole
-    if abs(fraction - 0.5) < 1e-9:
-        return f"{whole}½" if whole else "½"
-    if abs(fraction) < 1e-9:
-        return str(whole)
-    return f"{quantity:g}"
 
 
 def render_bucket(schedule, bucket):
@@ -93,8 +79,11 @@ def render_medicine_card(medicine, bucket=None):
 
     notes = medicine.get("notes", "")
     notes_html = f'<div class="medicine-note">{escape(notes)}</div>' if notes else ""
-    instruction = medicine.get("instruction") or "Instruction translation pending."
-    romanized = medicine.get("romanized") or "Romanized instruction pending."
+    instruction = medicine.get("instruction") or "Instruction not available yet."
+    romanized = medicine.get("romanized") or ""
+    romanized_html = (
+        f'<div class="medicine-romanized">{escape(romanized)}</div>' if romanized else ""
+    )
 
     return f"""
     <div class="medicine-card">
@@ -104,7 +93,7 @@ def render_medicine_card(medicine, bucket=None):
         {meta_html}
         {badge_html}
         <div class="medicine-instruction">{escape(instruction)}</div>
-        <div class="medicine-romanized">{escape(romanized)}</div>
+        {romanized_html}
         {notes_html}
     </div>
     """

@@ -1,12 +1,17 @@
-import json
 import os
 
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
 
 from huggingface_hub import hf_hub_download
 
-from backend.normalize import normalize_transcription
-from backend.schema import merge_translation, parse_model_json, parse_raw_json
+from backend.normalize import build_instruction, normalize_transcription
+from backend.schema import (
+    merge_translation,
+    normalize_schedule,
+    parse_model_json,
+    parse_raw_json,
+    uses_expected_script,
+)
 
 
 MINICPM_MODEL_ID = "openbmb/MiniCPM-V-4_6"
@@ -81,6 +86,10 @@ Use exactly this schema:
 Rules:
 - Copy notation character-for-character (e.g. write "1-0-1", not "twice a day").
 - Do NOT interpret or expand abbreviations like OD, BD, TDS, AC, PC, SOS.
+- Every line that lists a medicine (often starting with -, T., Tab., Cap., Syp.)
+  is a separate entry. Transcribe ALL of them, even if part of the image is
+  dark or blurry — transcribe whatever characters you can read.
+- Slot patterns like 1-0-1 or 0-0-1 always go in frequency_raw, never in name or dose.
 - Include a medicine only if you can read it from the image.
 - Use an empty string for any field that is not written on the prescription.
 - Do not add markdown, comments, or text outside JSON.
@@ -113,11 +122,10 @@ Rules:
     return transcription
 
 
-def translate_schedule(schedule, language):
+def _translate_with_aya(schedule, language_config):
     if AYA_MODEL_ERROR is not None:
         raise ValueError(f"tiny-aya could not be downloaded: {AYA_MODEL_ERROR}")
 
-    language_config = LANGUAGES.get(language, LANGUAGES["English"])
     language_name = language_config["name"]
     language_script = language_config["script"]
 
@@ -131,44 +139,30 @@ def translate_schedule(schedule, language):
         verbose=False,
     )
 
+    numbered = "\n".join(
+        f"{index + 1}. {medicine['instruction']}"
+        for index, medicine in enumerate(schedule["medicines"])
+    )
     prompt = f"""
-You are GrandmaCare, a careful medicine assistant for elderly users.
-Write simple medicine instructions in {language_name}.
-Also provide a romanized version for each instruction.
+You are GrandmaCare, a careful translator for elderly patients.
+Translate each numbered English sentence below into {language_name},
+written in {language_script} script, plus a romanized (Latin letters) version.
 
-Return JSON only using this exact schema:
+Return JSON only using this exact schema, one entry per sentence, same order:
 {{
   "medicines": [
     {{
-      "name": "same medicine name",
-      "dose": "same dose",
-      "schedule": ["morning"],
-      "quantities": {{"morning": 1}},
-      "as_needed": false,
-      "meal_relation": "same meal_relation",
-      "duration": "same duration",
-      "frequency_raw": "same frequency_raw",
-      "needs_review": false,
-      "notes": "same notes",
-      "instruction": "simple instruction in {language_name} using {language_script} script",
-      "romanized": "romanized version of the instruction"
+      "instruction": "translation in {language_name} using {language_script} script",
+      "romanized": "the same translation in Latin letters"
     }}
   ]
 }}
 
-Write each instruction from the structured fields:
-- Use the schedule and quantities for when and how much (0.5 means "half tablet").
-- If meal_relation is before_food, after_food, or with_food, say so simply.
-- If duration is set, mention it (e.g. "for 5 days").
-- If as_needed is true, say to take it only when needed, as the doctor advised.
-- If needs_review is true, say the timing is unclear and to confirm with the pharmacist.
-
-Keep the same medicine order and copy every field except instruction and romanized unchanged.
+Translate faithfully. Do not add, remove, or change any medical detail.
 Use warm, direct, senior-friendly language.
-Do not give medical advice beyond the prescription details.
 
-Prescription JSON:
-{json.dumps(schedule, ensure_ascii=False)}
+Sentences:
+{numbered}
 """
     response = llm.create_chat_completion(
         messages=[{"role": "user", "content": prompt}],
@@ -176,8 +170,32 @@ Prescription JSON:
         max_tokens=1000,
     )
     text = response["choices"][0]["message"]["content"]
-    translated = parse_model_json(text)
-    return merge_translation(schedule, translated)
+    return parse_model_json(text)
+
+
+def translate_schedule(schedule, language):
+    schedule = normalize_schedule(schedule)
+    for medicine in schedule["medicines"]:
+        medicine["instruction"] = build_instruction(medicine)
+        medicine["romanized"] = ""
+
+    language_config = LANGUAGES.get(language, LANGUAGES["English"])
+    if language_config["name"] == "English":
+        return schedule
+
+    try:
+        translated = _translate_with_aya(schedule, language_config)
+    except Exception:
+        # English instructions are always safe to show; never fail the
+        # whole analysis because translation misbehaved.
+        return schedule
+
+    merged = merge_translation(schedule, translated)
+    for index, medicine in enumerate(merged["medicines"]):
+        if not uses_expected_script(medicine["instruction"], language_config["script"]):
+            medicine["instruction"] = schedule["medicines"][index]["instruction"]
+            medicine["romanized"] = ""
+    return merged
 
 
 def analyze_prescription(image_path, language):
