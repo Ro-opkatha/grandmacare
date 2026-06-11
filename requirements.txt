@@ -9,7 +9,10 @@ gradio==6.16.0
 spaces
 transformers>=5.7.0
 accelerate
-nemo-toolkit-asr[asr]==2.8.0rc2
+# Nemotron 3.5 ASR needs NeMo from git main (per its model card — the PyPI
+# 2.8.0rc2 predates the EncDecRNNTBPEModelWithPrompt class this checkpoint
+# uses). Pinned to the main commit of 2026-06-10 for reproducible builds.
+nemo_toolkit[asr] @ git+https://github.com/NVIDIA-NeMo/NeMo.git@c9040511b2dbefe64767d9b8853b3a20d63a2cd2
 llama-cpp-python
 pillow
 opencv-python-headless

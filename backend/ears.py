@@ -6,8 +6,10 @@ transcribe — understanding and answering is the brain's job. The model stays
 on CPU: a 0.6B conformer transcribes a short spoken question in a couple of
 seconds without spending the ZeroGPU budget.
 
-Runs on nemo-toolkit-asr (the ASR-only split of NeMo, no transformers pin,
-Linux-only — like the Space it runs on).
+Runs on nemo_toolkit[asr] installed from NeMo git main, as the model card
+requires — this checkpoint's EncDecRNNTBPEModelWithPrompt class is not in
+any PyPI release yet. Needs libsndfile1 + ffmpeg (packages.txt). Linux-only,
+like the Space it runs on.
 """
 
 import os
