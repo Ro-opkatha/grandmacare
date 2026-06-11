@@ -1,23 +1,14 @@
-# torch ships the CUDA libs that the llama.cpp CUDA wheel needs at runtime
 --extra-index-url https://download.pytorch.org/whl/cu128
---extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
 torch==2.8.0
-torchvision==0.23.0
-torchaudio==2.8.0
+
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+llama-cpp-python
 
 gradio==6.16.0
 spaces
-transformers>=5.7.0
+transformers
 accelerate
-# Nemotron 3.5 ASR needs NeMo from git main (per its model card — the PyPI
-# 2.8.0rc2 predates the EncDecRNNTBPEModelWithPrompt class this checkpoint
-# uses). Pinned to the main commit of 2026-06-10 for reproducible builds.
-nemo_toolkit[asr] @ git+https://github.com/NVIDIA-NeMo/NeMo.git@c9040511b2dbefe64767d9b8853b3a20d63a2cd2
-llama-cpp-python
 pillow
-opencv-python-headless
-librosa
-soundfile
 huggingface_hub
 hf_transfer
 sentencepiece

@@ -2,7 +2,6 @@
 title: GrandmaCare
 sdk: gradio
 sdk_version: 6.16.0
-python_version: "3.12"
 app_file: app.py
 pinned: false
 ---
@@ -11,14 +10,9 @@ pinned: false
 
 **AI-powered multilingual medicine assistant for elderly users**
 
-GrandmaCare helps elderly individuals understand and manage their prescribed
-medications independently. A prescription photo becomes a faithful digital
-copy, then simple medicine cards in the user's own language — and at medicine
-time, grandma can show her medicines to the camera and be told which one to
-take right now.
+GrandmaCare is a senior-friendly healthcare assistant designed to help elderly individuals understand and manage their prescribed medications independently. By leveraging multimodal AI, the application transforms complex prescriptions into simple, easy-to-follow medication schedules in the user's preferred language.
 
-Built for the **Hugging Face Build Small Hackathon**: three small, specialized
-models instead of one big one.
+Built for the **Hugging Face Build Small Hackathon**, GrandmaCare focuses on solving a real-world problem faced by millions of elderly patients who struggle with handwritten prescriptions, medical jargon, and medication management.
 
 ---
 
@@ -27,97 +21,112 @@ models instead of one big one.
 Many elderly individuals depend on family members to understand:
 
 * Handwritten prescriptions
-* Medical abbreviations (1-0-1, OD, BD, HS, SOS, a/f…)
-* Dosage instructions and schedules
+* Medical abbreviations
+* Dosage instructions
+* Medication schedules
 
-Prescriptions don't follow one format — some say *before meal / after meal*,
-others *before sleep*, *after lunch*, *every 6 hours*. GrandmaCare adapts to
-however the prescription is written instead of forcing it into fixed slots.
+This often leads to confusion, missed doses, and reduced independence.
 
----
-
-## 🏗️ Architecture — eyes, brain, ears
-
-| Role | Model | Job |
-|---|---|---|
-| 👁 **Eyes** | [`openbmb/MiniCPM-V-4.6`](https://huggingface.co/openbmb/MiniCPM-V-4.6) (1B) | Reads the prescription **verbatim** into a digital copy; identifies medicines shown to the camera. Never explains — only looks. |
-| 🧠 **Brain** | [`CohereLabs/tiny-aya-global-GGUF`](https://huggingface.co/CohereLabs/tiny-aya-global-GGUF) (3.35B Q4_K_M, 70+ languages, ungated) | Turns the digital copy into adaptive cards and answers questions — always in the user's own language. llama.cpp with CUDA, loaded inside the ZeroGPU window. |
-| 👂 **Ears** | [`nvidia/nemotron-3.5-asr-streaming-0.6b`](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b) (0.6B) | Speech → text, so nobody has to type. |
-
-```
-Prescription photo
-   ↓  image clean-up (shadow removal, contrast — backend/preprocess.py)
-   ↓  EYES: verbatim transcription → digital copy
-   ↓  BRAIN: digital copy → adaptive medicine cards (user's language)
-   ↓  user confirms once → cards + digital copy = single source of truth
-   ↓
-   ├── voice question → EARS → BRAIN → BIG answer card (same language)
-   └── "medicine time" camera photo → EYES (what is visible & due)
-                                    → BRAIN (phrases the answer)
-```
-
-Deterministic Python (`backend/schema.py`, `backend/render.py`) sits between
-the models and the screen: every model output is validated, sanitized, and
-escaped before rendering — and ambiguous readings are flagged for the
-pharmacist, never guessed.
+GrandmaCare aims to bridge this gap by converting prescriptions into clear, accessible, and language-friendly guidance.
 
 ---
 
 ## ✨ Features
 
-### 📄 Digital copy, not interpretation
-The eyes transcribe exactly what is written — unreadable words become
-`<unclear>` markers, never guesses.
+### 📄 Prescription Understanding
 
-### 🗂️ Adaptive medicine cards
-One card per medicine, with the timing **in the prescription's own words** —
-"Before sleep", "After lunch", "Every 6 hours" — no fixed morning/noon/night
-boxes. Every card shows the verbatim text from the paper so family can verify.
+Upload a prescription image and extract relevant medication information using multimodal AI.
 
-### ✅ Confirm-once safety flow
-The cards are shown once, big and clear; the user confirms "This is correct"
-(or re-takes the photo). The confirmed cards — not a fresh read of the image —
-are the source of truth for everything afterwards.
+### 💊 Simplified Medicine Instructions
 
-### 🗣️ Speak your language — it just knows
-No language menu. Ask out loud in Hindi, English, or 70+ other languages; the
-answer comes back **in writing, in your language**, on a big high-contrast
-card. When you switch language, the medicine cards re-explain themselves in it
-too.
+Convert complex medical terminology into easy-to-understand explanations.
 
-### 🕐 "Which medicine do I take now?"
-At medicine time, show your strips and boxes to the camera. The app matches
-what it sees against your confirmed cards and your local time and tells you
-exactly which one to take — and says honestly when it isn't sure.
+### 🌏 Multilingual Support
 
-### 👴 Senior-friendly interface
-Large fonts, one column, big buttons, minimal cognitive load.
+Generate medicine schedules in:
+
+* English
+* Bengali
+* Hindi
+
+### 🗓️ Daily Medication Schedule
+
+Organize medicines into:
+
+* Morning
+* Afternoon
+* Evening
+* Night
+
+for easier adherence.
+
+### 🔊 Voice Assistance
+
+Coming later: the MVP keeps romanized text ready for future VoxCPM-powered speech.
+
+### 👴 Senior-Friendly Interface
+
+Designed with:
+
+* Large fonts
+* Clear navigation
+* Minimal cognitive load
+* Accessible layouts
 
 ---
 
-## ⚠️ Honest Limitations
+## 🏗️ System Architecture
 
-* **Handwriting reading is best-effort.** Garbled entries get an amber
-  "confirm with your pharmacist" badge rather than a guess.
-* **Voice input has no Bengali** (Nemotron ASR covers Hindi, English and ~38
-  others, not Bengali yet). Written answers and cards work in Bengali.
-* **Answers are written, not spoken** — voice in, big readable text out.
-* Tiny Aya Global is **CC-BY-NC** (non-commercial) — fine for this hackathon
-  project. The brain runs from the quantized (Q4_K_M) GGUF.
-* GrandmaCare never replaces a pharmacist — the confirm step and the amber
-  badges exist precisely because OCR of handwriting cannot be fully trusted.
+Prescription Image
+
+↓
+MiniCPM-V
+
+↓
+Medicine Information Extraction
+
+↓
+Structured Medication Schedule
+
+↓
+Multilingual Instruction Generation
+
+↓
+Romanized Guidance & User Interface
+
+---
+
+## 🛠️ Tech Stack
+
+### Frontend
+
+* Gradio
+* Python
+
+### AI Models
+
+* OpenBMB MiniCPM-V 4.6
+* CohereLabs tiny-aya-global
+
+### Additional Components
+
+* Multilingual instruction generation
+* Medication schedule engine
+* Romanized text seam for future Text-to-Speech (TTS)
 
 ---
 
 ## 🎯 Hackathon Alignment
 
-GrandmaCare addresses the **Backyard AI** challenge with three small models
-(≈5B parameters total, ~10 GB VRAM, ZeroGPU-ready) doing one job each:
+GrandmaCare directly addresses the **Backyard AI** challenge by solving a real problem for elderly family members and caregivers.
 
-* Real-world impact for elderly family members and caregivers
-* Small-model deployment — specialized beats monolithic
-* Accessibility and local-language support, auto-detected from speech
-* Human-centered design with an explicit safety gate
+The project emphasizes:
+
+* Real-world impact
+* Small-model deployment
+* Accessibility
+* Local-language support
+* Human-centered design
 
 ---
 
@@ -126,44 +135,52 @@ GrandmaCare addresses the **Backyard AI** challenge with three small models
 ```text
 grandmacare/
 │
-├── app.py                  # Gradio UI: read → confirm → ask / medicine time
+├── app.py
 ├── requirements.txt
 ├── README.md
 │
+├── frontend/
 ├── backend/
-│   ├── eyes.py             # MiniCPM-V-4.6: transcribe & identify
-│   ├── brain.py            # Tiny Aya: cards, answers, language detection
-│   ├── ears.py             # Nemotron ASR: speech → text
-│   ├── schema.py           # deterministic card-JSON validation (the trust boundary)
-│   ├── render.py           # deterministic, escaped HTML cards
-│   └── preprocess.py       # OpenCV photo clean-up
-│
-├── frontend/               # styles
-└── tests/                  # GPU-free unit tests (schema, render)
+├── components/
+├── assets/
+└── examples/
 ```
 
 ---
 
-## 🚀 Deployment
+## 🚀 Getting Started
 
-Runs as a Hugging Face Space (Gradio SDK, Python 3.12) with **ZeroGPU**. The
-eyes (PyTorch) load at startup; the brain is a CUDA llama.cpp instance
-created inside each `@spaces.GPU` window (`n_gpu_layers=-1` — the GGUF file
-is downloaded once at startup and OS-cached, so per-request loads take
-seconds); the ears run on CPU. All three model repos are ungated — no token
-or license click-through needed.
+### Clone the Repository
+
+```bash
+git clone https://github.com/Ro-opkatha/grandmacare.git
+cd grandmacare
+```
+
+### Create a Virtual Environment
+
+```bash
+python -m venv venv
+```
+
+### Activate the Environment
+
+Windows:
+
+```bash
+venv\Scripts\activate
+```
+
+### Install Dependencies
 
 ```bash
 pip install -r requirements.txt
-python app.py
 ```
 
-Note: `nemo-toolkit-asr` (the ears) is Linux-only — like the Space it runs on.
-
-GPU-free tests:
+### Run the Application
 
 ```bash
-python -m pytest tests/
+python app.py
 ```
 
 ---
@@ -179,6 +196,4 @@ python -m pytest tests/
 
 Technology should empower people, not exclude them.
 
-GrandmaCare is built with the belief that elderly individuals deserve
-healthcare tools that speak their language, respect their needs, and help
-them maintain independence with confidence.
+GrandmaCare is built with the belief that elderly individuals deserve healthcare tools that speak their language, respect their needs, and help them maintain independence with confidence.

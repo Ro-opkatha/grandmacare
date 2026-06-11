@@ -1,25 +1,51 @@
-"""
-backend/schema.py — deterministic validation for the card JSON contract.
-
-The brain (Tiny Aya) is prompted to return a flat list of medicine cards.
-This module is the trust boundary: whatever the model emits is parsed
-leniently but sanitized strictly — strings coerced and trimmed, missing
-fields defaulted, unknown shapes rejected. No model output reaches the UI
-without passing through here. No fixed timing vocabulary: `when` is free
-text, exactly as the prescription says it.
-"""
-
 import json
 import re
 
-CARD_TEXT_FIELDS = ("name", "dose", "when", "written", "explanation")
+
+TIME_BUCKETS = ("morning", "afternoon", "evening", "night")
 
 
-def empty_cards():
+def empty_schedule():
     return {"medicines": []}
 
 
-def _extract_json(text):
+def normalize_schedule(payload):
+    medicines = []
+    if not isinstance(payload, dict):
+        return empty_schedule()
+
+    for item in payload.get("medicines", []):
+        if not isinstance(item, dict):
+            continue
+
+        schedule = item.get("schedule", [])
+        if isinstance(schedule, str):
+            schedule = [schedule]
+
+        normalized_buckets = []
+        for bucket in schedule:
+            bucket_name = str(bucket).strip().lower()
+            if bucket_name in TIME_BUCKETS and bucket_name not in normalized_buckets:
+                normalized_buckets.append(bucket_name)
+
+        medicines.append(
+            {
+                "name": str(item.get("name") or "Medicine").strip(),
+                "dose": str(item.get("dose") or "Dose not listed").strip(),
+                "schedule": normalized_buckets,
+                "notes": str(item.get("notes") or "").strip(),
+                "instruction": str(item.get("instruction") or "").strip(),
+                "romanized": str(item.get("romanized") or "").strip(),
+            }
+        )
+
+    return {"medicines": medicines}
+
+
+def parse_model_json(text):
+    if isinstance(text, dict):
+        return normalize_schedule(text)
+
     raw = str(text or "").strip()
     if not raw:
         raise ValueError("The model returned an empty response.")
@@ -34,33 +60,20 @@ def _extract_json(text):
             raw = raw[start : end + 1]
 
     try:
-        return json.loads(raw)
+        return normalize_schedule(json.loads(raw))
     except json.JSONDecodeError as exc:
         raise ValueError("The model response was not valid JSON.") from exc
 
 
-def sanitize_cards(payload):
-    """Coerce a parsed payload into the card contract. Never raises."""
-    if not isinstance(payload, dict):
-        return empty_cards()
+def merge_translation(schedule, translated):
+    base = normalize_schedule(schedule)
+    translated = normalize_schedule(translated)
+    translated_items = translated.get("medicines", [])
 
-    medicines = []
-    for item in payload.get("medicines", []):
-        if not isinstance(item, dict):
+    for index, medicine in enumerate(base["medicines"]):
+        if index >= len(translated_items):
             continue
-        card = {field: str(item.get(field) or "").strip() for field in CARD_TEXT_FIELDS}
-        card["unclear"] = bool(item.get("unclear"))
-        if not any(card[field] for field in CARD_TEXT_FIELDS):
-            continue
-        if not card["name"]:
-            card["name"] = "Medicine"
-        medicines.append(card)
+        medicine["instruction"] = translated_items[index].get("instruction", "")
+        medicine["romanized"] = translated_items[index].get("romanized", "")
 
-    return {"medicines": medicines}
-
-
-def parse_cards_json(text):
-    """Model output -> sanitized cards. Raises ValueError only when no JSON
-    object can be extracted at all (so the caller can show a retry message)."""
-    payload = text if isinstance(text, dict) else _extract_json(text)
-    return sanitize_cards(payload)
+    return base
