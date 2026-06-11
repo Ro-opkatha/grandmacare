@@ -5,9 +5,9 @@ torchaudio==2.8.0
 
 gradio==6.16.0
 spaces
-transformers==4.51.0
+transformers>=5.7.0
 accelerate
-minicpmo-utils[all]>=1.0.5
+nemo-toolkit-asr[asr]==2.8.0rc2
 pillow
 opencv-python-headless
 librosa

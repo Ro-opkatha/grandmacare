@@ -211,6 +211,50 @@ body {
     margin-top: 4px;
 }
 
+/* Adaptive medicine cards — one flat list, timing comes from the prescription */
+.cards-area {
+    display: grid;
+    gap: 14px;
+}
+
+.cards-area .medicine-card {
+    background: #ffffff;
+    border: 1px solid #dde4ec;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.when-line {
+    color: #1f6fbf;
+    font-size: 22px;
+    font-weight: 800;
+    margin-top: 8px;
+}
+
+.written-line {
+    color: #5a6575;
+    font-size: 18px;
+    margin-top: 8px;
+}
+
+.empty-state.dark {
+    background: #f5f7fa;
+    border: 1px dashed #c6cfdb;
+    color: #5a6575;
+}
+
+/* BIG answer card — the brain's reply, read instead of spoken */
+.answer-card {
+    background: #ffffff;
+    border: 2px solid #1f6fbf;
+    border-radius: 18px;
+    color: #16202e;
+    font-size: 27px;
+    font-weight: 700;
+    line-height: 1.45;
+    margin-top: 6px;
+    padding: 20px;
+}
+
 /* Voice section */
 .voice-section {
     background: #f5f0fa;
