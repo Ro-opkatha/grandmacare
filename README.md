@@ -2,6 +2,7 @@
 title: GrandmaCare
 sdk: gradio
 sdk_version: 6.16.0
+python_version: "3.12"
 app_file: app.py
 pinned: false
 ---
@@ -40,7 +41,7 @@ however the prescription is written instead of forcing it into fixed slots.
 | Role | Model | Job |
 |---|---|---|
 | 👁 **Eyes** | [`openbmb/MiniCPM-V-4.6`](https://huggingface.co/openbmb/MiniCPM-V-4.6) (1B) | Reads the prescription **verbatim** into a digital copy; identifies medicines shown to the camera. Never explains — only looks. |
-| 🧠 **Brain** | [`CohereLabs/tiny-aya-global`](https://huggingface.co/CohereLabs/tiny-aya-global) (3.35B, 70+ languages) | Turns the digital copy into adaptive cards and answers questions — always in the user's own language. |
+| 🧠 **Brain** | [`CohereLabs/tiny-aya-global-GGUF`](https://huggingface.co/CohereLabs/tiny-aya-global-GGUF) (3.35B Q4_K_M, 70+ languages, ungated) | Turns the digital copy into adaptive cards and answers questions — always in the user's own language. llama.cpp with CUDA, loaded inside the ZeroGPU window. |
 | 👂 **Ears** | [`nvidia/nemotron-3.5-asr-streaming-0.6b`](https://huggingface.co/nvidia/nemotron-3.5-asr-streaming-0.6b) (0.6B) | Speech → text, so nobody has to type. |
 
 ```
@@ -102,7 +103,7 @@ Large fonts, one column, big buttons, minimal cognitive load.
   others, not Bengali yet). Written answers and cards work in Bengali.
 * **Answers are written, not spoken** — voice in, big readable text out.
 * Tiny Aya Global is **CC-BY-NC** (non-commercial) — fine for this hackathon
-  project.
+  project. The brain runs from the quantized (Q4_K_M) GGUF.
 * GrandmaCare never replaces a pharmacist — the confirm step and the amber
   badges exist precisely because OCR of handwriting cannot be fully trusted.
 
@@ -145,8 +146,12 @@ grandmacare/
 
 ## 🚀 Deployment
 
-Runs as a Hugging Face Space (Gradio SDK) with **ZeroGPU** — all three models
-load at startup and `@spaces.GPU` handlers borrow the GPU per request.
+Runs as a Hugging Face Space (Gradio SDK, Python 3.12) with **ZeroGPU**. The
+eyes (PyTorch) load at startup; the brain is a CUDA llama.cpp instance
+created inside each `@spaces.GPU` window (`n_gpu_layers=-1` — the GGUF file
+is downloaded once at startup and OS-cached, so per-request loads take
+seconds); the ears run on CPU. All three model repos are ungated — no token
+or license click-through needed.
 
 ```bash
 pip install -r requirements.txt

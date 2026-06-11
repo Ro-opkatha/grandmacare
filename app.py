@@ -38,6 +38,10 @@ def _analyze_error(message):
     ]
 
 
+# The eyes load at startup (PyTorch, the ZeroGPU-supported path). The brain
+# is llama.cpp with CUDA: ZeroGPU only attaches the GPU inside @spaces.GPU
+# windows, so brain.load() is called per request, inside the handler — the
+# GGUF file is already downloaded and OS-cached, so this takes seconds.
 @spaces.GPU(duration=180)
 def analyze(image_path, language):
     if not image_path:
@@ -45,7 +49,7 @@ def analyze(image_path, language):
     try:
         processed_path = preprocess_prescription(image_path)
         digital_copy = eyes.transcribe_prescription(processed_path)   # eyes: verbatim
-        cards = brain.build_cards(digital_copy, language)             # brain: cards
+        cards = brain.build_cards(brain.load(), digital_copy, language)  # brain: cards
         if not cards["medicines"]:
             return _analyze_error("I could not find any readable medicines.")
         debug_json = json.dumps(
@@ -116,14 +120,15 @@ def ask_voice(confirmed, audio_path, language):
         )
     try:
         question = ears.transcribe_audio(audio_path)                  # ears
-        reply = brain.answer(question, confirmed["digital_copy"], confirmed["cards"])
+        llm = brain.load()
+        reply = brain.answer(llm, question, confirmed["digital_copy"], confirmed["cards"])
         status = f"You asked: {question}"
 
         cards_update = gr.update()
-        detected = brain.detect_language(question)
+        detected = brain.detect_language(llm, question)
         if detected != language:
             # She spoke a new language — re-explain the cards in it too.
-            cards = brain.build_cards(confirmed["digital_copy"], detected)
+            cards = brain.build_cards(llm, confirmed["digital_copy"], detected)
             if cards["medicines"]:
                 confirmed = {**confirmed, "cards": cards}
                 cards_update = render_cards(cards)
@@ -148,7 +153,7 @@ def medicine_time(confirmed, photo_path, client_time, language):
         return render_answer_card("Please take a photo of your medicines first.")
     try:
         finding = eyes.identify_medicine_now(photo_path, confirmed["cards"], client_time)
-        reply = brain.phrase_medicine_time(finding, client_time, language)
+        reply = brain.phrase_medicine_time(brain.load(), finding, client_time, language)
         return render_answer_card(reply)
     except Exception as exc:
         return render_answer_card(f"Sorry, I could not check that: {exc}")

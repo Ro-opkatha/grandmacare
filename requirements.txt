@@ -1,4 +1,6 @@
+# torch ships the CUDA libs that the llama.cpp CUDA wheel needs at runtime
 --extra-index-url https://download.pytorch.org/whl/cu128
+--extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
 torch==2.8.0
 torchvision==0.23.0
 torchaudio==2.8.0
@@ -8,6 +10,7 @@ spaces
 transformers>=5.7.0
 accelerate
 nemo-toolkit-asr[asr]==2.8.0rc2
+llama-cpp-python
 pillow
 opencv-python-headless
 librosa

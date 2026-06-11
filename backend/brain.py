@@ -7,6 +7,12 @@ verbatim digital copy into adaptive medicine cards, and it answers questions
 addressed in, so the user's language is detected from how they speak, never
 selected from a menu.
 
+Runs from the UNGATED GGUF repo via llama.cpp with CUDA (the original
+safetensors repo is gated; transformers' GGUF loader does not support the
+cohere2 architecture). ZeroGPU only attaches the GPU inside a @spaces.GPU
+window, so the file is downloaded at startup but the Llama instance is
+created per request, inside the window, via load() — never at module level.
+
 Safety rules live in the prompts here: doses and timings come only from the
 digital copy and the confirmed cards; anything unreadable is flagged, never
 guessed. Whatever the brain emits is sanitized by backend/schema.py before
@@ -17,19 +23,31 @@ import os
 
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
 
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from huggingface_hub import hf_hub_download
+from llama_cpp import Llama
 
 from backend.schema import parse_cards_json
 
-BRAIN_MODEL_ID = "CohereLabs/tiny-aya-global"
+BRAIN_REPO_ID = "CohereLabs/tiny-aya-global-GGUF"
+BRAIN_GGUF_FILE = "tiny-aya-global-q4_k_m.gguf"
 
-# ZeroGPU: created at module level, never inside a @spaces.GPU function.
-tokenizer = AutoTokenizer.from_pretrained(BRAIN_MODEL_ID)
-model = AutoModelForCausalLM.from_pretrained(BRAIN_MODEL_ID, dtype=torch.bfloat16)
-model.eval()
-if torch.cuda.is_available():
-    model = model.cuda()
+# Download at startup (no GPU needed); after the first load the file sits in
+# the OS page cache, so per-request loads are fast.
+MODEL_PATH = hf_hub_download(repo_id=BRAIN_REPO_ID, filename=BRAIN_GGUF_FILE)
+
+
+def load():
+    """Create the GPU-resident brain. MUST be called from inside a
+    @spaces.GPU function — that is the only place ZeroGPU attaches the GPU.
+    Chat formatting comes from the template embedded in the GGUF; n_ctx is
+    sized for digital copy + cards + question, not the model's 500k window."""
+    return Llama(
+        model_path=MODEL_PATH,
+        n_gpu_layers=-1,
+        n_ctx=8192,
+        flash_attn=True,
+        verbose=False,
+    )
 
 
 CARDS_PROMPT = """\
@@ -100,18 +118,13 @@ pharmacist or showing one medicine at a time. 1 to 3 short, warm sentences.
 """
 
 
-def _chat(messages, max_new_tokens=700):
-    input_ids = tokenizer.apply_chat_template(
-        messages,
-        tokenize=True,
-        add_generation_prompt=True,
-        return_tensors="pt",
-    ).to(model.device)
-    with torch.no_grad():
-        output = model.generate(input_ids, max_new_tokens=max_new_tokens, do_sample=False)
-    return tokenizer.decode(
-        output[0, input_ids.shape[1] :], skip_special_tokens=True
-    ).strip()
+def _chat(llm, messages, max_new_tokens=700):
+    result = llm.create_chat_completion(
+        messages=messages,
+        max_tokens=max_new_tokens,
+        temperature=0.0,
+    )
+    return (result["choices"][0]["message"]["content"] or "").strip()
 
 
 def cards_to_context(digital_copy, cards):
@@ -131,27 +144,29 @@ def cards_to_context(digital_copy, cards):
     )
 
 
-def build_cards(digital_copy, language="English"):
+def build_cards(llm, digital_copy, language="English"):
     """Digital copy -> sanitized adaptive cards, retrying once on bad JSON."""
     prompt = CARDS_PROMPT.format(language=language, digital_copy=digital_copy)
-    reply = _chat([{"role": "user", "content": prompt}])
+    reply = _chat(llm, [{"role": "user", "content": prompt}])
     try:
         return parse_cards_json(reply)
     except ValueError:
         reply = _chat(
+            llm,
             [
                 {"role": "user", "content": prompt},
                 {"role": "assistant", "content": reply},
                 {"role": "user", "content": "Return ONLY the JSON object, nothing else."},
-            ]
+            ],
         )
         return parse_cards_json(reply)
 
 
-def answer(question, digital_copy, cards):
+def answer(llm, question, digital_copy, cards):
     """Answer one question, in the language the question was asked in."""
     context = cards_to_context(digital_copy, cards)
     return _chat(
+        llm,
         [
             {"role": "system", "content": ANSWER_RULES},
             {"role": "user", "content": f"{context}\n\nQuestion: {question}"},
@@ -160,18 +175,19 @@ def answer(question, digital_copy, cards):
     )
 
 
-def phrase_medicine_time(finding, local_time, language="English"):
+def phrase_medicine_time(llm, finding, local_time, language="English"):
     """Reword the eyes' factual finding as a warm answer in the user's language."""
     prompt = PHRASE_TIME_PROMPT.format(
         rules=ANSWER_RULES, finding=finding, local_time=local_time, language=language
     )
-    return _chat([{"role": "user", "content": prompt}], max_new_tokens=220)
+    return _chat(llm, [{"role": "user", "content": prompt}], max_new_tokens=220)
 
 
-def detect_language(text):
+def detect_language(llm, text):
     """Name the language of `text` in English (e.g. 'Hindi'). Falls back to
     English when the reply is not a plausible language name."""
     reply = _chat(
+        llm,
         [
             {
                 "role": "user",
