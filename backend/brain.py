@@ -20,6 +20,7 @@ it reaches the UI.
 """
 
 import os
+import time
 
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
 
@@ -36,18 +37,41 @@ BRAIN_GGUF_FILE = "tiny-aya-global-q4_k_m.gguf"
 MODEL_PATH = hf_hub_download(repo_id=BRAIN_REPO_ID, filename=BRAIN_GGUF_FILE)
 
 
+def _warm_page_cache(path):
+    """Read the GGUF once at startup so the first request loads it from RAM
+    instead of disk — startup time is free, the first user's minute is not."""
+    chunk = 64 * 1024 * 1024
+    with open(path, "rb") as f:
+        while f.read(chunk):
+            pass
+
+
+_warm_page_cache(MODEL_PATH)
+
+
+_first_load = True
+
+
 def load():
     """Create the GPU-resident brain. MUST be called from inside a
     @spaces.GPU function — that is the only place ZeroGPU attaches the GPU.
     Chat formatting comes from the template embedded in the GGUF; n_ctx is
     sized for digital copy + cards + question, not the model's 500k window."""
-    return Llama(
+    global _first_load
+    started = time.perf_counter()
+    # verbose on the first load prints llama.cpp's device report — the line
+    # "offloaded 41/41 layers to GPU" in the Space logs is the proof that
+    # the CUDA wheel is actually doing GPU inference.
+    llm = Llama(
         model_path=MODEL_PATH,
         n_gpu_layers=-1,
         n_ctx=8192,
         flash_attn=True,
-        verbose=False,
+        verbose=_first_load,
     )
+    print(f"[brain] load took {time.perf_counter() - started:.1f}s", flush=True)
+    _first_load = False
+    return llm
 
 
 CARDS_PROMPT = """\
@@ -151,6 +175,7 @@ def build_cards(llm, digital_copy, language="English"):
     try:
         return parse_cards_json(reply)
     except ValueError:
+        print("[brain] card JSON malformed — retrying once", flush=True)
         reply = _chat(
             llm,
             [

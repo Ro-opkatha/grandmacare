@@ -1,4 +1,5 @@
 import json
+import time
 
 import gradio as gr
 import spaces
@@ -38,6 +39,11 @@ def _analyze_error(message):
     ]
 
 
+def _progress(message):
+    """Status-only update while a long stage runs (other outputs untouched)."""
+    return [message] + [gr.update()] * 7
+
+
 # The eyes load at startup (PyTorch, the ZeroGPU-supported path). The brain
 # is llama.cpp with CUDA: ZeroGPU only attaches the GPU inside @spaces.GPU
 # windows, so brain.load() is called per request, inside the handler — the
@@ -45,13 +51,22 @@ def _analyze_error(message):
 @spaces.GPU(duration=180)
 def analyze(image_path, language):
     if not image_path:
-        return _analyze_error("please upload a prescription photo first.")
+        yield _analyze_error("please upload a prescription photo first.")
+        return
     try:
+        yield _progress("Looking at your prescription…")
+        started = time.perf_counter()
         processed_path = preprocess_prescription(image_path)
         digital_copy = eyes.transcribe_prescription(processed_path)   # eyes: verbatim
+        print(f"[analyze] eyes transcription took {time.perf_counter() - started:.1f}s", flush=True)
+
+        yield _progress("Writing your medicine cards…")
+        started = time.perf_counter()
         cards = brain.build_cards(brain.load(), digital_copy, language)  # brain: cards
+        print(f"[analyze] brain cards took {time.perf_counter() - started:.1f}s", flush=True)
         if not cards["medicines"]:
-            return _analyze_error("I could not find any readable medicines.")
+            yield _analyze_error("I could not find any readable medicines.")
+            return
         debug_json = json.dumps(
             {"digital_copy": digital_copy, "cards": cards},
             ensure_ascii=False,
@@ -62,7 +77,7 @@ def analyze(image_path, language):
             "digital_copy": digital_copy,
             "cards": cards,
         }
-        return [
+        yield [
             CHECK_MESSAGE,
             debug_json,
             render_cards(cards),
@@ -73,7 +88,7 @@ def analyze(image_path, language):
             gr.update(visible=False),  # medicine-time section
         ]
     except Exception as exc:
-        return _analyze_error(exc)
+        yield _analyze_error(exc)
 
 
 def confirm_schedule(pending):
@@ -111,17 +126,25 @@ def retake_photo():
 @spaces.GPU(duration=120)
 def ask_voice(confirmed, audio_path, language):
     if not confirmed:
-        return (
+        yield (
             render_answer_card("Please confirm your medicine cards first."),
             gr.update(),
             confirmed,
             language,
             gr.update(),
         )
+        return
     try:
+        yield gr.update(), gr.update(), confirmed, language, "Listening…"
+        started = time.perf_counter()
         question = ears.transcribe_audio(audio_path)                  # ears
+        print(f"[ask] ears took {time.perf_counter() - started:.1f}s", flush=True)
+
+        yield gr.update(), gr.update(), confirmed, language, f"You asked: {question}"
+        started = time.perf_counter()
         llm = brain.load()
         reply = brain.answer(llm, question, confirmed["digital_copy"], confirmed["cards"])
+        print(f"[ask] brain answer took {time.perf_counter() - started:.1f}s", flush=True)
         status = f"You asked: {question}"
 
         cards_update = gr.update()
@@ -134,9 +157,9 @@ def ask_voice(confirmed, audio_path, language):
                 cards_update = render_cards(cards)
             language = detected
 
-        return render_answer_card(reply), cards_update, confirmed, language, status
+        yield render_answer_card(reply), cards_update, confirmed, language, status
     except Exception as exc:
-        return (
+        yield (
             render_answer_card(f"Sorry, I could not answer that: {exc}"),
             gr.update(),
             confirmed,
@@ -148,15 +171,22 @@ def ask_voice(confirmed, audio_path, language):
 @spaces.GPU(duration=120)
 def medicine_time(confirmed, photo_path, client_time, language):
     if not confirmed:
-        return render_answer_card("Please read and confirm your prescription first.")
+        yield render_answer_card("Please read and confirm your prescription first.")
+        return
     if not photo_path:
-        return render_answer_card("Please take a photo of your medicines first.")
+        yield render_answer_card("Please take a photo of your medicines first.")
+        return
     try:
+        yield render_answer_card("Let me take a look…")
+        started = time.perf_counter()
         finding = eyes.identify_medicine_now(photo_path, confirmed["cards"], client_time)
+        print(f"[medtime] eyes took {time.perf_counter() - started:.1f}s", flush=True)
+        started = time.perf_counter()
         reply = brain.phrase_medicine_time(brain.load(), finding, client_time, language)
-        return render_answer_card(reply)
+        print(f"[medtime] brain took {time.perf_counter() - started:.1f}s", flush=True)
+        yield render_answer_card(reply)
     except Exception as exc:
-        return render_answer_card(f"Sorry, I could not check that: {exc}")
+        yield render_answer_card(f"Sorry, I could not check that: {exc}")
 
 
 with gr.Blocks(
