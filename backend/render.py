@@ -58,6 +58,9 @@ def render_medicine_card(medicine, bucket=None):
     duration = medicine.get("duration", "")
     if duration:
         meta_parts.append(f"For {duration}")
+    quantity_to_buy = medicine.get("quantity_to_buy", "")
+    if quantity_to_buy:
+        meta_parts.append(f"Buy {quantity_to_buy} from the pharmacy")
     meta_html = (
         f'<div class="medicine-meta">{escape(" · ".join(meta_parts))}</div>'
         if meta_parts

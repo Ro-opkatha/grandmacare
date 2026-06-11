@@ -8,11 +8,11 @@ Run with either:
 import unittest
 
 from backend.normalize import (
-    build_instruction,
     format_quantity,
     interpret_duration,
     interpret_frequency,
     interpret_meal_relation,
+    interpret_quantity_to_buy,
     normalize_medicine,
     normalize_transcription,
 )
@@ -22,6 +22,7 @@ from backend.schema import (
     parse_raw_json,
     uses_expected_script,
 )
+from backend.templates import TEMPLATES, build_instruction, localize_schedule
 
 
 class TestDosePatterns(unittest.TestCase):
@@ -122,6 +123,10 @@ class TestMealRelation(unittest.TestCase):
 
     def test_empty_stomach(self):
         self.assertEqual(interpret_meal_relation("empty stomach"), "before_food")
+
+    def test_slash_shorthand(self):
+        self.assertEqual(interpret_meal_relation("(b/f)"), "before_food")
+        self.assertEqual(interpret_meal_relation("a/f"), "after_food")
 
     def test_none(self):
         self.assertEqual(interpret_meal_relation("no meal info"), "")
@@ -283,6 +288,61 @@ class TestBuildInstruction(unittest.TestCase):
         self.assertEqual(format_quantity(0.5), "½")
         self.assertEqual(format_quantity(1.0), "1")
         self.assertEqual(format_quantity(1.5), "1½")
+
+
+class TestTemplatesAllLanguages(unittest.TestCase):
+    """Every language must render every instruction shape without a
+    missing-slot KeyError (HI/BN are English placeholders pending
+    Roopkatha's native review)."""
+
+    def _samples(self):
+        return [
+            normalize_medicine({"name": "A", "frequency_raw": "1-0-1", "meal_raw": "PC"}),
+            normalize_medicine({"name": "B", "frequency_raw": "BD"}),
+            normalize_medicine({"name": "C", "frequency_raw": "SOS"}),
+            normalize_medicine({"name": "D", "frequency_raw": "q4h alt die"}),
+            normalize_medicine({"name": "E", "frequency_raw": "½-0-½", "duration_raw": "x 5 days"}),
+        ]
+
+    def test_all_languages_render(self):
+        for language in TEMPLATES:
+            for medicine in self._samples():
+                instruction = build_instruction(medicine, language)
+                self.assertTrue(instruction.strip(), f"{language}: empty instruction")
+
+    def test_localize_schedule_fills_instructions(self):
+        schedule = {"medicines": self._samples()}
+        localized = localize_schedule(schedule, "Hindi")
+        for medicine in localized["medicines"]:
+            self.assertTrue(medicine["instruction"])
+            self.assertEqual(medicine["romanized"], "")
+
+    def test_unknown_language_falls_back_to_english(self):
+        medicine = normalize_medicine({"name": "A", "frequency_raw": "OD"})
+        self.assertEqual(
+            build_instruction(medicine, "Klingon"),
+            build_instruction(medicine, "English"),
+        )
+
+
+class TestQuantityToBuy(unittest.TestCase):
+    def test_circled_digit(self):
+        self.assertEqual(interpret_quantity_to_buy("⑥"), "6")
+
+    def test_plain_number(self):
+        self.assertEqual(interpret_quantity_to_buy("10 tab"), "10")
+
+    def test_garbage(self):
+        self.assertEqual(interpret_quantity_to_buy("S"), "")
+
+    def test_kept_out_of_schedule(self):
+        entry = normalize_medicine(
+            {"name": "X", "frequency_raw": "1-0-1", "quantity_to_buy": "⑧"}
+        )
+        self.assertEqual(entry["quantity_to_buy"], "8")
+        self.assertEqual(entry["schedule"], ["morning", "night"])
+        cleaned = normalize_schedule({"medicines": [entry]})
+        self.assertEqual(cleaned["medicines"][0]["quantity_to_buy"], "8")
 
 
 class TestScriptValidation(unittest.TestCase):
