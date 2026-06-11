@@ -1,23 +1,31 @@
 body {
     font-family: "Segoe UI", Arial, sans-serif;
+    font-size: 18px;
+}
+
+/* Single-column, phone-first page */
+.page {
+    margin: 0 auto !important;
+    max-width: 560px !important;
+    gap: 14px !important;
 }
 
 .hero {
     background: #f5f7fa;
     border-radius: 22px;
-    padding: 25px;
+    color: #243142;
+    padding: 22px;
     text-align: center;
-    margin-bottom: 20px;
 }
 
 .hero h1 {
-    font-size: 44px;
-    margin: 0 0 8px;
+    font-size: 40px;
+    margin: 0 0 6px;
 }
 
 .hero h3 {
-    font-size: 24px;
-    margin: 0 0 8px;
+    font-size: 22px;
+    margin: 0 0 6px;
 }
 
 .hero p {
@@ -25,6 +33,40 @@ body {
     margin: 0;
 }
 
+.section-title {
+    color: #243142;
+    font-size: 24px;
+    font-weight: 800;
+    margin: 6px 2px 0;
+}
+
+.language-radio label {
+    font-size: 20px !important;
+    padding: 12px 18px !important;
+}
+
+.big-button {
+    border-radius: 18px !important;
+    font-size: 24px !important;
+    font-weight: 800 !important;
+    min-height: 68px !important;
+}
+
+.secondary-button {
+    background: #eef3f8 !important;
+    color: #243142 !important;
+}
+
+.confirm-row {
+    gap: 12px !important;
+}
+
+.status-box textarea {
+    font-size: 19px !important;
+    font-weight: 600;
+}
+
+/* Time-of-day tiles — stacked, friendly */
 .tile {
     border-radius: 20px;
     color: white;
@@ -32,18 +74,12 @@ body {
     box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
 }
 
-.control-tile {
-    min-height: 190px;
-    padding: 28px 18px;
-}
-
 .schedule-tile {
-    min-height: 320px;
-    padding: 24px 18px;
+    padding: 20px 16px;
 }
 
 .tile-icon {
-    font-size: 54px;
+    font-size: 44px;
     line-height: 1;
 }
 
@@ -51,67 +87,33 @@ body {
     display: inline-block;
 }
 
-.document::before {
-    content: "📄";
-}
-
-.globe::before {
-    content: "🌐";
-}
-
-.sun::before {
-    content: "☀";
-}
-
-.clock::before {
-    content: "🕑";
-}
-
-.sunset::before {
-    content: "🌆";
-}
-
-.moon::before {
-    content: "🌙";
-}
-
-.glasses::before {
-    content: "👓";
-}
-
-.star::before {
-    content: "⭐";
-}
-
-.question::before {
-    content: "🤔";
-}
+.sun::before { content: "☀"; }
+.clock::before { content: "🕑"; }
+.sunset::before { content: "🌆"; }
+.moon::before { content: "🌙"; }
+.star::before { content: "⭐"; }
+.question::before { content: "🤔"; }
 
 .tile-title {
-    font-size: 30px;
-    font-weight: 700;
-    margin-top: 16px;
+    font-size: 28px;
+    font-weight: 800;
+    margin-top: 8px;
 }
 
 .tile-subtitle {
     font-size: 19px;
-    margin-top: 8px;
-}
-
-.status-box textarea {
-    font-size: 18px !important;
-    font-weight: 600;
+    margin-top: 6px;
 }
 
 .medicine-list {
     display: grid;
     gap: 12px;
-    margin-top: 18px;
+    margin-top: 14px;
 }
 
 .medicine-card {
-    background: rgba(255, 255, 255, 0.95);
-    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.96);
+    border-radius: 16px;
     color: #243142;
     padding: 16px;
     text-align: left;
@@ -119,33 +121,16 @@ body {
 
 .medicine-name {
     color: #16202e;
-    font-size: 26px;
+    font-size: 25px;
     font-weight: 800;
     line-height: 1.15;
 }
 
 .medicine-dose {
     color: #5a6575;
-    font-size: 21px;
+    font-size: 20px;
     font-weight: 700;
     margin-top: 4px;
-}
-
-.medicine-instruction {
-    color: #243142;
-    font-size: 21px;
-    line-height: 1.35;
-    margin-top: 12px;
-}
-
-.medicine-romanized {
-    background: #eef3f8;
-    border-radius: 10px;
-    color: #29384d;
-    font-size: 20px;
-    line-height: 1.35;
-    margin-top: 10px;
-    padding: 10px;
 }
 
 .medicine-qty {
@@ -165,7 +150,7 @@ body {
 .review-badge {
     background: #fff3d6;
     border: 1px solid #f0c36d;
-    border-radius: 10px;
+    border-radius: 12px;
     color: #7a5200;
     font-size: 19px;
     font-weight: 700;
@@ -184,22 +169,28 @@ body {
     padding: 2px 8px;
 }
 
-.extras-row {
-    display: grid;
-    gap: 16px;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    margin-top: 16px;
+.medicine-instruction {
+    color: #243142;
+    font-size: 21px;
+    line-height: 1.4;
+    margin-top: 12px;
 }
 
-.amber {
-    background: #f0a929;
+.medicine-romanized {
+    background: #eef3f8;
+    border-radius: 10px;
+    color: #29384d;
+    font-size: 20px;
+    line-height: 1.4;
+    margin-top: 10px;
+    padding: 10px;
 }
 
 .medicine-note {
     border-top: 1px solid #d7dde6;
     color: #5a6575;
     font-size: 18px;
-    line-height: 1.35;
+    line-height: 1.4;
     margin-top: 12px;
     padding-top: 10px;
 }
@@ -208,62 +199,52 @@ body {
     background: rgba(255, 255, 255, 0.22);
     border: 1px solid rgba(255, 255, 255, 0.38);
     border-radius: 14px;
-    font-size: 21px;
+    font-size: 20px;
     font-weight: 700;
-    margin-top: 18px;
-    padding: 28px 16px;
+    margin-top: 14px;
+    padding: 22px 14px;
 }
 
-.voice-button {
-    min-height: 190px !important;
-    border: 0 !important;
-    border-radius: 20px !important;
-    background: #8e24aa !important;
-    color: white !important;
-    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15) !important;
-    font-size: 28px !important;
-    font-weight: 800 !important;
-    white-space: pre-line !important;
+.extras-row {
+    display: grid;
+    gap: 14px;
+    margin-top: 4px;
 }
 
-.voice-button:hover {
-    background: #7b1fa2 !important;
+/* Voice section */
+.voice-section {
+    background: #f5f0fa;
+    border-radius: 20px;
+    gap: 12px !important;
+    padding: 16px !important;
 }
 
-.red {
-    background: #ef5350;
+.voice-hint {
+    color: #4a3a5a;
+    font-size: 19px;
+    line-height: 1.4;
+    margin: 4px 2px 0;
 }
 
-.orange {
-    background: #fb8c00;
+.answer-box textarea {
+    font-size: 23px !important;
+    font-weight: 600;
+    line-height: 1.4 !important;
 }
 
-.blue {
-    background: #42a5f5;
-}
+/* Tile colors */
+.red { background: #ef5350; }
+.orange { background: #fb8c00; }
+.blue { background: #42a5f5; }
+.green { background: #43a047; }
+.purple { background: #8e24aa; }
+.teal { background: #00897b; }
+.amber { background: #f0a929; }
 
-.green {
-    background: #43a047;
-}
-
-.purple {
-    background: #8e24aa;
-}
-
-.teal {
-    background: #00897b;
-}
-
-@media (max-width: 720px) {
-    .hero h1 {
-        font-size: 36px;
-    }
-
-    .tile-title {
-        font-size: 26px;
-    }
-
-    .medicine-name {
-        font-size: 24px;
-    }
+@media (max-width: 480px) {
+    body { font-size: 17px; }
+    .hero h1 { font-size: 32px; }
+    .tile-title { font-size: 24px; }
+    .medicine-name { font-size: 22px; }
+    .big-button { font-size: 21px !important; }
 }

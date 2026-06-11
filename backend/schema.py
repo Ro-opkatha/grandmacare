@@ -69,6 +69,7 @@ def normalize_schedule(payload):
                 "as_needed": bool(item.get("as_needed")),
                 "meal_relation": str(item.get("meal_relation") or "").strip(),
                 "duration": str(item.get("duration") or "").strip(),
+                "quantity_to_buy": str(item.get("quantity_to_buy") or "").strip(),
                 "frequency_raw": str(item.get("frequency_raw") or "").strip(),
                 "needs_review": bool(item.get("needs_review")),
                 "notes": str(item.get("notes") or "").strip(),

@@ -28,23 +28,17 @@ ABBREVIATIONS = {
 
 AS_NEEDED = {"sos", "prn", "as needed", "when needed", "if needed", "if required"}
 
-MEAL_BEFORE = {"ac", "a.c", "a/c", "before food", "before meal", "before meals",
-               "empty stomach", "khali pet", "before breakfast"}
-MEAL_AFTER = {"pc", "p.c", "p/c", "after food", "after meal", "after meals",
-              "after breakfast", "after dinner", "after lunch"}
+MEAL_BEFORE = {"ac", "a.c", "a/c", "b/f", "b.f", "before food", "before meal",
+               "before meals", "empty stomach", "khali pet", "before breakfast"}
+MEAL_AFTER = {"pc", "p.c", "p/c", "a/f", "a.f", "after food", "after meal",
+              "after meals", "after breakfast", "after dinner", "after lunch"}
 MEAL_WITH = {"with food", "with meal", "with meals", "cf", "c.f"}
 
-BUCKET_PHRASES = {
-    "morning": "in the morning",
-    "afternoon": "in the afternoon",
-    "evening": "in the evening",
-    "night": "at night",
-}
-
-MEAL_PHRASES = {
-    "before_food": "before food",
-    "after_food": "after food",
-    "with_food": "with food",
+# Doctors circle the total tablets to dispense (⑥ = buy 6); keep it separate
+# from timing so it can never be mistaken for a schedule.
+_CIRCLED_DIGITS = {
+    "①": "1", "②": "2", "③": "3", "④": "4", "⑤": "5",
+    "⑥": "6", "⑦": "7", "⑧": "8", "⑨": "9", "⑩": "10",
 }
 
 # e.g. 1-0-1, 1/2-0-1, 1-1-1-1, 1–0–1 (en dash), 1 - 0 - 1
@@ -191,56 +185,13 @@ def _rescue_dose_pattern(item):
     return None
 
 
-def _join_phrases(phrases):
-    if len(phrases) == 1:
-        return phrases[0]
-    return ", ".join(phrases[:-1]) + " and " + phrases[-1]
-
-
-def build_instruction(medicine):
-    """Deterministic English instruction from the structured fields.
-
-    The language model only ever translates this sentence — it must never
-    compose dosing text itself, especially for needs_review medicines."""
-    if medicine.get("needs_review"):
-        return (
-            "The timing for this medicine is not clear from the prescription. "
-            "Please ask your pharmacist or doctor before taking it."
-        )
-
-    extras = []
-    meal = MEAL_PHRASES.get(medicine.get("meal_relation", ""))
-    if meal:
-        extras.append(meal)
-    duration = medicine.get("duration", "")
-    if duration:
-        extras.append(f"for {duration}")
-    suffix = ", " + ", ".join(extras) if extras else ""
-
-    if medicine.get("as_needed"):
-        return (
-            "Take this medicine only when you need it, "
-            f"as your doctor advised{suffix}."
-        )
-
-    schedule = medicine.get("schedule", [])
-    if not schedule:
-        return "Please ask your pharmacist how to take this medicine."
-
-    quantities = medicine.get("quantities") or {}
-    phrases = []
-    for bucket in schedule:
-        when = BUCKET_PHRASES.get(bucket, bucket)
-        if bucket in quantities:
-            amount = format_quantity(quantities[bucket])
-            unit = "tablet" if amount in ("½", "1") else "tablets"
-            phrases.append(f"{amount} {unit} {when}")
-        else:
-            phrases.append(when)
-
-    if quantities:
-        return f"Take {_join_phrases(phrases)}{suffix}."
-    return f"Take this medicine {_join_phrases(phrases)}{suffix}."
+def interpret_quantity_to_buy(raw):
+    """'⑥' / '6' / '6 tab' -> '6'. Anything non-numeric -> ''."""
+    text = str(raw or "").strip()
+    for circled, digit in _CIRCLED_DIGITS.items():
+        text = text.replace(circled, digit)
+    match = re.search(r"\d+", text)
+    return match.group(0) if match else ""
 
 
 def normalize_medicine(item):
@@ -277,6 +228,7 @@ def normalize_medicine(item):
         "as_needed": freq["as_needed"],
         "meal_relation": interpret_meal_relation(combined),
         "duration": interpret_duration(combined),
+        "quantity_to_buy": interpret_quantity_to_buy(item.get("quantity_to_buy")),
         "frequency_raw": raw_freq.strip(),
         "needs_review": needs_review,
         "notes": notes,

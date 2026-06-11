@@ -60,9 +60,18 @@ Organize medicines into:
 
 for easier adherence.
 
-### 🔊 Voice Assistance
+### ✅ Confirm-Once Safety Flow
 
-Coming later: the MVP keeps romanized text ready for future VoxCPM-powered speech.
+The prescription is read **once**, shown as big cards, and the user confirms
+"This is correct" (or re-takes the photo). The confirmed schedule — not a fresh
+read of the image — is the single source of truth for everything afterwards.
+
+### 🔊 Voice Q&A
+
+After confirming, ask questions out loud ("when do I take the white pill?").
+MiniCPM-o 4.5 hears the question and answers with a spoken reply. Doses and
+timings in answers come only from the confirmed schedule; the photo is used
+only for visual questions.
 
 ### 👴 Senior-Friendly Interface
 
@@ -77,22 +86,29 @@ Designed with:
 
 ## 🏗️ System Architecture
 
-Prescription Image
+**One model sees, reads, and speaks; deterministic Python keeps it honest.**
+
+Prescription Photo
 
 ↓
-MiniCPM-V
+Image clean-up (shadow removal, contrast, upscale — `backend/preprocess.py`)
 
 ↓
-Medicine Information Extraction
+MiniCPM-o 4.5 transcribes what is literally written (two passes: verbatim
+lines, then verbatim JSON — no interpretation)
 
 ↓
-Structured Medication Schedule
+Deterministic notation interpreter (`backend/normalize.py`: 1-0-1 patterns,
+OD/BD/TDS/HS/SOS, AC/PC, durations; anything unclear is flagged for the
+pharmacist, never guessed)
 
 ↓
-Multilingual Instruction Generation
+Deterministic instruction templates (`backend/templates.py`, EN/HI/BN —
+no model composes dosing text)
 
 ↓
-Romanized Guidance & User Interface
+User confirms the schedule once → confirmed schedule + photo become the
+context for turn-based voice Q&A (MiniCPM-o 4.5 speech in/out)
 
 ---
 
@@ -103,16 +119,30 @@ Romanized Guidance & User Interface
 * Gradio
 * Python
 
-### AI Models
+### AI Model
 
-* OpenBMB MiniCPM-V 4.6
-* CohereLabs tiny-aya-global
+* OpenBMB MiniCPM-o 4.5 (vision + speech, single model)
 
 ### Additional Components
 
-* Multilingual instruction generation
-* Medication schedule engine
-* Romanized text seam for future Text-to-Speech (TTS)
+* Deterministic prescription-notation interpreter + instruction templates
+  (the safety boundary: models transcribe and chat, never compose schedules)
+* OpenCV photo preprocessing
+* GPU-free unit test suite (`tests/`)
+
+---
+
+## ⚠️ Honest Limitations
+
+* **Handwriting reading is best-effort.** Garbled or ambiguous entries are
+  flagged with an amber "ask your pharmacist" badge rather than guessed —
+  expect flags on messy cursive or shadowed photos.
+* **Spoken answers are English** (the model's speech output supports English
+  and Chinese). Hindi/Bengali appear as on-screen text; the Hindi/Bengali
+  template strings currently show English placeholders pending native review.
+* Voice is **turn-based** (record → answer), not a live conversation.
+* GrandmaCare never replaces a pharmacist — the confirm step and review
+  badges exist precisely because OCR of handwriting cannot be fully trusted.
 
 ---
 
