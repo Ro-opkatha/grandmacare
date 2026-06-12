@@ -157,6 +157,72 @@ body {
     padding: 28px 16px;
 }
 
+.empty-state.dark {
+    background: #f5f7fa;
+    border: 1px solid #d7dde6;
+    color: #5a6575;
+    text-align: center;
+}
+
+.timing-badge {
+    display: inline-block;
+    background: #fff3cd;
+    border: 1px solid #e6d28a;
+    border-radius: 999px;
+    color: #6b5b1d;
+    font-size: 18px;
+    font-weight: 700;
+    margin-top: 10px;
+    padding: 6px 14px;
+}
+
+.medicine-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.transcript-box {
+    background: white;
+    border: 1px solid #d7dde6;
+    border-radius: 14px;
+    color: #243142;
+    font-size: 18px;
+    line-height: 1.5;
+    padding: 18px;
+    text-align: left;
+    white-space: pre-wrap;
+}
+
+.pill-result {
+    border-radius: 14px;
+    color: #243142;
+    margin-top: 12px;
+    padding: 18px;
+    text-align: left;
+}
+
+.pill-result.matched {
+    background: #e8f5e9;
+    border: 2px solid #43a047;
+}
+
+.pill-result.not-found {
+    background: #fff8e1;
+    border: 2px solid #fb8c00;
+}
+
+.view-toggle label {
+    font-size: 22px !important;
+    font-weight: 700;
+    padding: 12px 18px !important;
+}
+
+.pill::before {
+    content: "💊";
+}
+
 .voice-button {
     min-height: 190px !important;
     border: 0 !important;

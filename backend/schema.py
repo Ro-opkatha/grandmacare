@@ -2,49 +2,9 @@ import json
 import re
 
 
-TIME_BUCKETS = ("morning", "afternoon", "evening", "night")
-
-
-def empty_schedule():
-    return {"medicines": []}
-
-
-def normalize_schedule(payload):
-    medicines = []
-    if not isinstance(payload, dict):
-        return empty_schedule()
-
-    for item in payload.get("medicines", []):
-        if not isinstance(item, dict):
-            continue
-
-        schedule = item.get("schedule", [])
-        if isinstance(schedule, str):
-            schedule = [schedule]
-
-        normalized_buckets = []
-        for bucket in schedule:
-            bucket_name = str(bucket).strip().lower()
-            if bucket_name in TIME_BUCKETS and bucket_name not in normalized_buckets:
-                normalized_buckets.append(bucket_name)
-
-        medicines.append(
-            {
-                "name": str(item.get("name") or "Medicine").strip(),
-                "dose": str(item.get("dose") or "Dose not listed").strip(),
-                "schedule": normalized_buckets,
-                "notes": str(item.get("notes") or "").strip(),
-                "instruction": str(item.get("instruction") or "").strip(),
-                "romanized": str(item.get("romanized") or "").strip(),
-            }
-        )
-
-    return {"medicines": medicines}
-
-
-def parse_model_json(text):
+def extract_json(text):
     if isinstance(text, dict):
-        return normalize_schedule(text)
+        return text
 
     raw = str(text or "").strip()
     if not raw:
@@ -60,20 +20,92 @@ def parse_model_json(text):
             raw = raw[start : end + 1]
 
     try:
-        return normalize_schedule(json.loads(raw))
+        payload = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ValueError("The model response was not valid JSON.") from exc
 
+    if not isinstance(payload, dict):
+        raise ValueError("The model response was not a JSON object.")
+    return payload
 
-def merge_translation(schedule, translated):
-    base = normalize_schedule(schedule)
-    translated = normalize_schedule(translated)
-    translated_items = translated.get("medicines", [])
 
-    for index, medicine in enumerate(base["medicines"]):
-        if index >= len(translated_items):
+def normalize_medicines(payload):
+    medicines = []
+    if not isinstance(payload, dict):
+        return {"medicines": []}
+
+    items = payload.get("medicines", [])
+    if not isinstance(items, list):
+        return {"medicines": []}
+
+    for item in items:
+        if not isinstance(item, dict):
             continue
-        medicine["instruction"] = translated_items[index].get("instruction", "")
-        medicine["romanized"] = translated_items[index].get("romanized", "")
 
-    return base
+        medicine = {
+            "name": str(item.get("name") or "").strip(),
+            "dose": str(item.get("dose") or "").strip(),
+            "timing": str(item.get("timing") or "").strip(),
+            "timing_label": str(item.get("timing_label") or "").strip(),
+            "instruction": str(item.get("instruction") or "").strip(),
+            "romanized": str(item.get("romanized") or "").strip(),
+            "notes": str(item.get("notes") or "").strip(),
+        }
+
+        if not medicine["name"] and not medicine["timing"]:
+            continue
+        if not medicine["name"]:
+            medicine["name"] = "Medicine"
+
+        medicines.append(medicine)
+
+    return {"medicines": medicines}
+
+
+def grouping_key(medicine):
+    label = medicine.get("timing_label") or medicine.get("timing") or "As written"
+    return " ".join(str(label).split()).lower()
+
+
+def group_by_timing(medicines):
+    groups = []
+    index_by_key = {}
+
+    for medicine in medicines:
+        key = grouping_key(medicine)
+        if key in index_by_key:
+            groups[index_by_key[key]][1].append(medicine)
+        else:
+            display = (
+                medicine.get("timing_label")
+                or medicine.get("timing")
+                or "As written"
+            )
+            display = " ".join(str(display).split())
+            index_by_key[key] = len(groups)
+            groups.append((display, [medicine]))
+
+    return groups
+
+
+def normalize_pill_match(payload):
+    if not isinstance(payload, dict):
+        payload = {}
+
+    matched = payload.get("matched", False)
+    if isinstance(matched, str):
+        matched = matched.strip().lower() == "true"
+
+    return {
+        "matched": bool(matched),
+        "medicine_name": str(payload.get("medicine_name") or "").strip(),
+        "answer": str(payload.get("answer") or "").strip(),
+        "romanized": str(payload.get("romanized") or "").strip(),
+    }
+
+
+def truncate_transcript(text, max_chars=2500):
+    text = str(text or "")
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n[transcript truncated]"
