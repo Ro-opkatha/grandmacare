@@ -12,6 +12,7 @@ from backend.models import (
 from backend.render import (
     empty_transcript,
     empty_view,
+    render_freestyle,
     render_notice,
     render_pill_result,
     render_transcript,
@@ -38,7 +39,7 @@ def analyze(image_path, language, view):
         ]
 
     try:
-        medicines = structure_and_translate(transcript, language)
+        medicines, raw_text = structure_and_translate(transcript, language)
     except Exception as exc:
         state = {"transcript": transcript, "language": language, "medicines": []}
         message = (
@@ -53,9 +54,30 @@ def analyze(image_path, language, view):
             json.dumps({"error": str(exc)}, ensure_ascii=False, indent=2),
         ]
 
-    state = {"transcript": transcript, "language": language, "medicines": medicines}
+    state = {
+        "transcript": transcript,
+        "language": language,
+        "medicines": medicines,
+        "raw": raw_text,
+    }
+    debug_json = json.dumps(
+        {"medicines": medicines, "raw": raw_text}, ensure_ascii=False, indent=2
+    )
+
+    if not medicines:
+        status = (
+            "I wrote out the schedule as best I could. Please confirm it with a "
+            "doctor or pharmacist."
+        )
+        return [
+            status,
+            state,
+            render_freestyle(raw_text),
+            render_transcript(transcript),
+            debug_json,
+        ]
+
     status = "Prescription analyzed. Please confirm the schedule with a doctor or pharmacist."
-    debug_json = json.dumps({"medicines": medicines}, ensure_ascii=False, indent=2)
     return [
         status,
         state,
@@ -79,8 +101,10 @@ def pill_check(pill_image_path, state):
 
 
 def rerender(view, state):
-    if not state or not state.get("medicines"):
+    if not state:
         return empty_view()
+    if not state.get("medicines"):
+        return render_freestyle(state.get("raw", ""))
     return render_view(state["medicines"], view)
 
 

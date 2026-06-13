@@ -1,136 +1,135 @@
-import pytest
-
-from backend.schema import (
-    extract_json,
-    normalize_medicines,
-    normalize_pill_match,
-    truncate_transcript,
-)
+from backend.schema import parse_cards_text, parse_pill_text, truncate_transcript
 
 
-class TestExtractJson:
-    def test_bare_json(self):
-        assert extract_json('{"medicines": []}') == {"medicines": []}
+class TestParseCardsText:
+    def test_single_card(self):
+        text = """MEDICINE: Paracetamol
+DOSE: 500 mg
+WHEN: 1-0-1 after food
+TAKE: Take one tablet morning and night, after eating.
+SAY: Take one tablet morning and night, after eating.
+NOTE: for 5 days"""
+        cards = parse_cards_text(text)
+        assert len(cards) == 1
+        assert cards[0]["name"] == "Paracetamol"
+        assert cards[0]["dose"] == "500 mg"
+        assert cards[0]["timing"] == "1-0-1 after food"
+        assert cards[0]["instruction"].startswith("Take one tablet")
+        assert cards[0]["notes"] == "for 5 days"
 
-    def test_fenced_json(self):
-        text = 'Here you go:\n```json\n{"medicines": []}\n```\nDone.'
-        assert extract_json(text) == {"medicines": []}
+    def test_multiple_cards(self):
+        text = """MEDICINE: A
+WHEN: morning
 
-    def test_fence_without_language_tag(self):
-        text = '```\n{"a": 1}\n```'
-        assert extract_json(text) == {"a": 1}
+MEDICINE: B
+WHEN: night"""
+        cards = parse_cards_text(text)
+        assert [c["name"] for c in cards] == ["A", "B"]
+        assert cards[1]["timing"] == "night"
 
-    def test_json_with_surrounding_prose(self):
-        text = 'Sure! {"medicines": [{"name": "X"}]} Hope that helps.'
-        assert extract_json(text) == {"medicines": [{"name": "X"}]}
+    def test_missing_fields_default_empty(self):
+        cards = parse_cards_text("MEDICINE: OnlyName")
+        assert cards[0]["name"] == "OnlyName"
+        assert cards[0]["dose"] == ""
+        assert cards[0]["timing"] == ""
 
-    def test_nested_braces(self):
-        text = 'prefix {"a": {"b": {"c": 1}}} suffix'
-        assert extract_json(text) == {"a": {"b": {"c": 1}}}
+    def test_key_synonyms(self):
+        text = """NAME: X
+TIMING: before lunch
+INSTRUCTION: take it
+ROMANIZED: take it
+NOTES: n"""
+        cards = parse_cards_text(text)
+        assert cards[0]["name"] == "X"
+        assert cards[0]["timing"] == "before lunch"
+        assert cards[0]["instruction"] == "take it"
+        assert cards[0]["romanized"] == "take it"
+        assert cards[0]["notes"] == "n"
 
-    def test_dict_passthrough(self):
-        assert extract_json({"a": 1}) == {"a": 1}
+    def test_markdown_noise_tolerated(self):
+        text = """- **MEDICINE:** Crocin
+* **WHEN:** at bedtime"""
+        cards = parse_cards_text(text)
+        assert cards[0]["name"] == "Crocin"
+        assert cards[0]["timing"] == "at bedtime"
 
-    def test_empty_raises(self):
-        with pytest.raises(ValueError):
-            extract_json("")
+    def test_case_insensitive_keys(self):
+        cards = parse_cards_text("medicine: x\nwhen: bd")
+        assert cards[0]["name"] == "x"
+        assert cards[0]["timing"] == "bd"
 
-    def test_none_raises(self):
-        with pytest.raises(ValueError):
-            extract_json(None)
+    def test_junk_before_first_card_ignored(self):
+        text = """Here are the cards you asked for:
 
-    def test_garbage_raises(self):
-        with pytest.raises(ValueError):
-            extract_json("not json at all")
+MEDICINE: A
+WHEN: morning"""
+        cards = parse_cards_text(text)
+        assert len(cards) == 1
 
-    def test_json_array_raises(self):
-        with pytest.raises(ValueError):
-            extract_json("[1, 2, 3]")
+    def test_wrapped_instruction_continues(self):
+        text = """MEDICINE: A
+TAKE: Take one tablet
+every morning after breakfast."""
+        cards = parse_cards_text(text)
+        assert cards[0]["instruction"] == "Take one tablet every morning after breakfast."
 
+    def test_continuation_stops_at_blank_line(self):
+        text = """MEDICINE: A
+TAKE: Take one tablet
 
-class TestNormalizeMedicines:
-    def test_full_payload_passes_through(self):
-        payload = {
-            "medicines": [
-                {
-                    "name": "Amoxicillin",
-                    "dose": "500 mg",
-                    "timing": "1-0-1 after food",
-                    "timing_label": "Morning and night",
-                    "instruction": "খাবারের পরে খান",
-                    "romanized": "khabarer pore khan",
-                    "notes": "for 5 days",
-                }
-            ]
-        }
-        result = normalize_medicines(payload)
-        assert result == payload
+this trailing chatter is ignored"""
+        cards = parse_cards_text(text)
+        assert cards[0]["instruction"] == "Take one tablet"
 
-    def test_missing_fields_get_defaults(self):
-        result = normalize_medicines({"medicines": [{"name": "Crocin"}]})
-        medicine = result["medicines"][0]
-        assert medicine["name"] == "Crocin"
-        for field in ("dose", "timing", "timing_label", "instruction", "romanized", "notes"):
-            assert medicine[field] == ""
+    def test_nameless_card_dropped(self):
+        cards = parse_cards_text("MEDICINE:\nWHEN: morning")
+        assert cards == []
 
-    def test_non_dict_items_skipped(self):
-        result = normalize_medicines({"medicines": ["junk", 42, None, {"name": "X"}]})
-        assert len(result["medicines"]) == 1
+    def test_empty_input(self):
+        assert parse_cards_text("") == []
+        assert parse_cards_text(None) == []
 
-    def test_numeric_values_coerced_to_strings(self):
-        result = normalize_medicines({"medicines": [{"name": "X", "dose": 500}]})
-        assert result["medicines"][0]["dose"] == "500"
+    def test_no_labels_at_all(self):
+        assert parse_cards_text("The patient should rest and drink water.") == []
 
-    def test_nameless_and_timingless_entry_dropped(self):
-        result = normalize_medicines({"medicines": [{"notes": "Dr. Sharma Clinic"}]})
-        assert result["medicines"] == []
-
-    def test_nameless_with_timing_kept_with_placeholder_name(self):
-        result = normalize_medicines({"medicines": [{"timing": "before lunch"}]})
-        assert result["medicines"][0]["name"] == "Medicine"
-
-    def test_non_dict_payload(self):
-        assert normalize_medicines("junk") == {"medicines": []}
-        assert normalize_medicines(None) == {"medicines": []}
-
-    def test_non_list_medicines(self):
-        assert normalize_medicines({"medicines": "junk"}) == {"medicines": []}
-
-    def test_whitespace_stripped(self):
-        result = normalize_medicines({"medicines": [{"name": "  X  ", "timing": " bd "}]})
-        assert result["medicines"][0]["name"] == "X"
-        assert result["medicines"][0]["timing"] == "bd"
+    def test_dash_separator_accepted(self):
+        cards = parse_cards_text("MEDICINE - Crocin\nWHEN - at night")
+        assert cards[0]["name"] == "Crocin"
+        assert cards[0]["timing"] == "at night"
 
 
-class TestNormalizePillMatch:
-    def test_matched_result(self):
-        result = normalize_pill_match(
-            {"matched": True, "medicine_name": "Crocin", "answer": "A", "romanized": "B"}
-        )
-        assert result == {
-            "matched": True,
-            "medicine_name": "Crocin",
-            "answer": "A",
-            "romanized": "B",
-        }
+class TestParsePillText:
+    def test_matched(self):
+        text = """MATCH: Paracetamol
+ANSWER: This is your fever medicine.
+SAY: This is your fever medicine."""
+        result = parse_pill_text(text)
+        assert result["matched"] is True
+        assert result["medicine_name"] == "Paracetamol"
+        assert result["answer"] == "This is your fever medicine."
+        assert result["romanized"] == "This is your fever medicine."
 
-    def test_missing_matched_defaults_false(self):
-        assert normalize_pill_match({})["matched"] is False
-
-    def test_string_true_coerced(self):
-        assert normalize_pill_match({"matched": "true"})["matched"] is True
-        assert normalize_pill_match({"matched": "True"})["matched"] is True
-
-    def test_string_false_coerced(self):
-        assert normalize_pill_match({"matched": "false"})["matched"] is False
-
-    def test_non_dict_payload(self):
-        result = normalize_pill_match(None)
+    def test_none_means_no_match(self):
+        result = parse_pill_text("MATCH: NONE\nANSWER: Not on your prescription.")
         assert result["matched"] is False
-        assert result["answer"] == ""
+        assert result["medicine_name"] == ""
+        assert result["answer"] == "Not on your prescription."
 
-    def test_none_fields_become_empty_strings(self):
-        result = normalize_pill_match({"matched": True, "answer": None})
+    def test_no_labels_falls_back_to_raw_answer(self):
+        result = parse_pill_text("This looks like Crocin, take it at night.")
+        assert result["matched"] is False
+        assert result["answer"] == "This looks like Crocin, take it at night."
+
+    def test_wrapped_answer_continues(self):
+        text = """MATCH: A
+ANSWER: First part
+second part."""
+        result = parse_pill_text(text)
+        assert result["answer"] == "First part second part."
+
+    def test_empty_input(self):
+        result = parse_pill_text("")
+        assert result["matched"] is False
         assert result["answer"] == ""
 
 

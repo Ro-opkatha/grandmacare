@@ -112,6 +112,13 @@ def render_pill_result(result):
     """
 
 
+def render_freestyle(text):
+    body = str(text or "").strip()
+    if not body:
+        return empty_view()
+    return f'<div class="medicine-card freestyle">{escape(body)}</div>'
+
+
 def render_notice(message):
     return f'<div class="pill-result not-found"><div class="medicine-instruction">{escape(message)}</div></div>'
 

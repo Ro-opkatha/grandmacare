@@ -223,6 +223,12 @@ body {
     content: "💊";
 }
 
+.medicine-card.freestyle {
+    font-size: 21px;
+    line-height: 1.45;
+    white-space: pre-wrap;
+}
+
 .voice-button {
     min-height: 190px !important;
     border: 0 !important;

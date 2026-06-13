@@ -4,6 +4,7 @@ from backend.render import (
     empty_view,
     render_by_medicine,
     render_by_time,
+    render_freestyle,
     render_medicine_card,
     render_notice,
     render_pill_result,
@@ -138,6 +139,17 @@ class TestPillResult:
             {"matched": True, "medicine_name": "X", "answer": "<script>", "romanized": ""}
         )
         assert "<script>" not in html
+
+
+class TestFreestyle:
+    def test_escaped(self):
+        html = render_freestyle("MEDICINE: <script>alert(1)</script>")
+        assert "<script>" not in html
+        assert "freestyle" in html
+
+    def test_empty_shows_empty_state(self):
+        assert "empty-state" in render_freestyle("")
+        assert "empty-state" in render_freestyle(None)
 
 
 class TestHelpers:

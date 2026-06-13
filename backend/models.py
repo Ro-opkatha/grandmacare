@@ -1,4 +1,3 @@
-import json
 import os
 
 os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
@@ -6,9 +5,8 @@ os.environ.setdefault("HF_HUB_ENABLE_HF_TRANSFER", "1")
 from huggingface_hub import hf_hub_download
 
 from backend.schema import (
-    extract_json,
-    normalize_medicines,
-    normalize_pill_match,
+    parse_cards_text,
+    parse_pill_text,
     truncate_transcript,
 )
 
@@ -152,31 +150,32 @@ def structure_and_translate(transcript, language):
 
     prompt = f"""
 You are GrandmaCare, a careful medicine assistant for elderly users.
-Below is a verbatim transcript of a doctor's prescription. Extract the medicines into JSON.
+Below is a transcript of a doctor's prescription. Write one simple card for each medicine.
 
-Return JSON only, using exactly this schema:
-{{"medicines": [{{"name": "", "dose": "", "timing": "", "timing_label": "", "instruction": "", "romanized": "", "notes": ""}}]}}
+Write each card exactly like this example, one field per line, with an empty line between cards:
+
+MEDICINE: Paracetamol
+DOSE: 500 mg
+WHEN: 1-0-1 after food
+TAKE: Take one tablet in the morning and one at night, after eating.
+SAY: Take one tablet in the morning and one at night, after eating.
+NOTE: for 5 days
 
 Rules:
-- One entry per medicine. Ignore lines that are not medicines (clinic name, doctor name, patient name, date, signature).
-- "name": the medicine name as written.
-- "dose": strength or quantity as written, or "" if not given.
-- "timing": copy the doctor's timing words EXACTLY as written, for example "1-0-1 after food" or "at bedtime". Do not reword it.
-- "timing_label": a very short simple English label for when to take it, at most 4 words. Examples: "Morning and night", "Before lunch", "At bedtime", "When needed", "Three times a day".
-- "instruction": one short, warm sentence in {language_name} using {language_script} script telling the patient how to take this medicine.
-- "romanized": the same instruction written in Latin letters.
-- "notes": any extra detail like duration ("for 5 days"), or "" if none.
-- If the transcript says [unclear] for a detail, leave that field "" and mention the uncertainty in "notes".
+- Start every card with the MEDICINE line.
+- WHEN: copy the doctor's timing words exactly as written. Do not reword them.
+- TAKE: one short, warm sentence in {language_name} using {language_script} script telling the patient how to take it.
+- SAY: the same sentence written in Latin letters.
+- Skip the DOSE or NOTE line if the prescription does not say.
+- Ignore lines that are not medicines (clinic name, doctor name, patient name, date, signature).
 - Do not invent medicines or details that are not in the transcript.
+- No JSON, no markdown, no extra commentary.
 
 Transcript:
 {truncate_transcript(transcript)}
 """
     text = _aya_complete(prompt, max_tokens=1400)
-    schedule = normalize_medicines(extract_json(text))
-    if not schedule["medicines"]:
-        raise ValueError("I could not find any medicines in the digital copy.")
-    return schedule["medicines"]
+    return parse_cards_text(text), text.strip()
 
 
 def match_pill(label_text, medicines, language):
@@ -184,21 +183,24 @@ def match_pill(label_text, medicines, language):
     language_name = language_config["name"]
     language_script = language_config["script"]
 
-    compact = [
-        {
-            "name": medicine.get("name", ""),
-            "dose": medicine.get("dose", ""),
-            "timing": medicine.get("timing", ""),
-            "timing_label": medicine.get("timing_label", ""),
-        }
+    listing = "\n".join(
+        "- " + " | ".join(
+            part
+            for part in (
+                medicine.get("name", ""),
+                medicine.get("dose", ""),
+                medicine.get("timing", ""),
+            )
+            if part
+        )
         for medicine in medicines
-    ]
+    )
 
     prompt = f"""
 You are GrandmaCare, helping an elderly patient identify a medicine.
 
 The patient's prescription contains these medicines:
-{json.dumps(compact, ensure_ascii=False)}
+{listing}
 
 The patient photographed a medicine package. The text on it reads:
 {truncate_transcript(label_text, max_chars=800)}
@@ -206,14 +208,17 @@ The patient photographed a medicine package. The text on it reads:
 Decide whether this package matches one of the prescription medicines. Names may have small
 spelling differences or be a brand name for the same medicine, but only match when you are confident.
 
-Return JSON only, exactly this schema:
-{{"matched": true, "medicine_name": "", "answer": "", "romanized": ""}}
+Answer in exactly this format, one field per line:
+
+MATCH: the matching prescription medicine name, or NONE
+ANSWER: your answer for the patient
+SAY: the same answer written in Latin letters
 
 Rules:
-- If matched: "medicine_name" is the prescription name, and "answer" is 1-2 short sentences in {language_name} using {language_script} script saying which medicine this is and when and how to take it, using the prescription timing.
-- If not matched: "matched" is false, "medicine_name" is "", and "answer" says in {language_name} that this medicine is not on the prescription and they should ask their pharmacist.
-- "romanized": the answer in Latin letters.
+- If it matches: ANSWER is 1-2 short sentences in {language_name} using {language_script} script saying which medicine this is and when and how to take it, using the prescription timing.
+- If it does not match: MATCH is NONE, and ANSWER says in {language_name} that this medicine is not on the prescription and they should ask their pharmacist.
 - Never guess dosage information that is not in the prescription.
+- No JSON, no markdown, no extra commentary.
 """
     text = _aya_complete(prompt, max_tokens=400)
-    return normalize_pill_match(extract_json(text))
+    return parse_pill_text(text)

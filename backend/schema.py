@@ -1,65 +1,113 @@
-import json
 import re
 
 
-def extract_json(text):
-    if isinstance(text, dict):
-        return text
+_CARD_FIELDS = {
+    "medicine": "name",
+    "name": "name",
+    "dose": "dose",
+    "when": "timing",
+    "timing": "timing",
+    "schedule": "timing",
+    "label": "timing_label",
+    "take": "instruction",
+    "instruction": "instruction",
+    "say": "romanized",
+    "romanized": "romanized",
+    "note": "notes",
+    "notes": "notes",
+}
 
-    raw = str(text or "").strip()
-    if not raw:
-        raise ValueError("The model returned an empty response.")
+_PILL_FIELDS = {
+    "match": "medicine_name",
+    "medicine": "medicine_name",
+    "answer": "answer",
+    "take": "answer",
+    "say": "romanized",
+    "romanized": "romanized",
+}
 
-    fenced = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", raw, flags=re.DOTALL)
-    if fenced:
-        raw = fenced.group(1)
-    else:
-        start = raw.find("{")
-        end = raw.rfind("}")
-        if start >= 0 and end > start:
-            raw = raw[start : end + 1]
+# Allows bullets/markdown noise before the key and ":" or "-" after it.
+_LABELED_LINE = re.compile(r"^[\s*#>•-]*([A-Za-z]+)\s*[:\-]\s*(.*)$")
 
-    try:
-        payload = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise ValueError("The model response was not valid JSON.") from exc
-
-    if not isinstance(payload, dict):
-        raise ValueError("The model response was not a JSON object.")
-    return payload
+# Fields where a wrapped line should be appended rather than ignored.
+_CONTINUABLE = {"instruction", "romanized", "notes", "timing"}
 
 
-def normalize_medicines(payload):
+def _empty_card():
+    return {
+        "name": "",
+        "dose": "",
+        "timing": "",
+        "timing_label": "",
+        "instruction": "",
+        "romanized": "",
+        "notes": "",
+    }
+
+
+def _clean_value(value):
+    return value.strip().strip("*").strip()
+
+
+def parse_cards_text(text):
     medicines = []
-    if not isinstance(payload, dict):
-        return {"medicines": []}
+    current = None
+    last_field = None
 
-    items = payload.get("medicines", [])
-    if not isinstance(items, list):
-        return {"medicines": []}
-
-    for item in items:
-        if not isinstance(item, dict):
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            last_field = None
             continue
 
-        medicine = {
-            "name": str(item.get("name") or "").strip(),
-            "dose": str(item.get("dose") or "").strip(),
-            "timing": str(item.get("timing") or "").strip(),
-            "timing_label": str(item.get("timing_label") or "").strip(),
-            "instruction": str(item.get("instruction") or "").strip(),
-            "romanized": str(item.get("romanized") or "").strip(),
-            "notes": str(item.get("notes") or "").strip(),
-        }
+        match = _LABELED_LINE.match(line)
+        field = _CARD_FIELDS.get(match.group(1).lower()) if match else None
 
-        if not medicine["name"] and not medicine["timing"]:
+        if field == "name":
+            current = _empty_card()
+            current["name"] = _clean_value(match.group(2))
+            medicines.append(current)
+            last_field = "name"
+        elif field and current is not None:
+            current[field] = _clean_value(match.group(2))
+            last_field = field
+        elif current is not None and last_field in _CONTINUABLE:
+            current[last_field] = (current[last_field] + " " + line).strip()
+        else:
+            last_field = None
+
+    return [medicine for medicine in medicines if medicine["name"]]
+
+
+def parse_pill_text(text):
+    result = {"matched": False, "medicine_name": "", "answer": "", "romanized": ""}
+    last_field = None
+
+    for raw_line in str(text or "").splitlines():
+        line = raw_line.strip()
+        if not line:
+            last_field = None
             continue
-        if not medicine["name"]:
-            medicine["name"] = "Medicine"
 
-        medicines.append(medicine)
+        match = _LABELED_LINE.match(line)
+        field = _PILL_FIELDS.get(match.group(1).lower()) if match else None
 
-    return {"medicines": medicines}
+        if field:
+            result[field] = _clean_value(match.group(2))
+            last_field = field
+        elif last_field in ("answer", "romanized"):
+            result[last_field] = (result[last_field] + " " + line).strip()
+
+    name = result["medicine_name"]
+    if name and name.strip().lower() not in ("none", "no", "no match", "not found"):
+        result["matched"] = True
+    else:
+        result["medicine_name"] = ""
+
+    if not result["answer"]:
+        result["answer"] = str(text or "").strip()
+
+    return result
 
 
 def grouping_key(medicine):
@@ -86,22 +134,6 @@ def group_by_timing(medicines):
             groups.append((display, [medicine]))
 
     return groups
-
-
-def normalize_pill_match(payload):
-    if not isinstance(payload, dict):
-        payload = {}
-
-    matched = payload.get("matched", False)
-    if isinstance(matched, str):
-        matched = matched.strip().lower() == "true"
-
-    return {
-        "matched": bool(matched),
-        "medicine_name": str(payload.get("medicine_name") or "").strip(),
-        "answer": str(payload.get("answer") or "").strip(),
-        "romanized": str(payload.get("romanized") or "").strip(),
-    }
 
 
 def truncate_transcript(text, max_chars=2500):
