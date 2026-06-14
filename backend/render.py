@@ -1,7 +1,5 @@
 from html import escape
 
-from backend.schema import group_by_timing
-
 
 GROUP_COLORS = ("blue", "orange", "teal", "green", "purple", "red")
 
@@ -17,34 +15,22 @@ def timing_icon(label):
     return "pill"
 
 
-def render_card_actions(medicine):
-    """Voice button + alarm controls. Pure markup + data-* attributes; the
-    JS engine (frontend/alarm.js) drives them via event delegation, so this
-    stays robust even if Gradio sanitizes the HTML blob (no inline JS here).
-
-    The 🔊 button carries the text to speak in data-gc-say (romanized line for
-    Hindi/Bengali, else the English instruction, else the name). Clicking it
-    asks the server to synthesize that text on demand with VoxCPM."""
-    name = escape(medicine.get("name", "Medicine"))
-    say = (
+def say_text(medicine):
+    """The text a card's 🔊 button asks VoxCPM to speak: the romanized line
+    (it spells out Hindi/Bengali sounds for the English-only model), else the
+    English instruction, else the medicine name."""
+    return (
         medicine.get("romanized")
         or medicine.get("instruction")
         or medicine.get("name", "Medicine")
     )
-    return f"""
-        <div class="card-actions" data-gc-card="{name}">
-            <button type="button" class="sound-btn" data-gc-play data-gc-say="{escape(say)}">🔊 Listen</button>
-            <div class="alarm-row">
-                <input type="time" class="alarm-input" data-gc-alarm-input aria-label="Alarm time for {name}">
-                <button type="button" class="alarm-set" data-gc-alarm-set data-gc-med="{name}">Set alarm</button>
-                <button type="button" class="alarm-clear" data-gc-alarm-clear data-gc-med="{name}">Clear</button>
-                <span class="alarm-status" data-gc-alarm-status></span>
-            </div>
-        </div>
-    """
 
 
-def render_medicine_card(medicine):
+def render_card_body(medicine):
+    """Visual-only card markup: name, dose, timing, instruction, romanized,
+    notes. The 🔊 Listen and reminder controls are native Gradio components
+    emitted alongside this by the @gr.render loop in app.py — no buttons or
+    inline JS live here."""
     timing = medicine.get("timing", "")
     timing_html = (
         f'<div class="timing-badge">Doctor wrote: {escape(timing)}</div>'
@@ -70,51 +56,26 @@ def render_medicine_card(medicine):
         {instruction_html}
         {romanized_html}
         {notes_html}
-        {render_card_actions(medicine)}
     </div>
     """
 
 
-def render_by_medicine(medicines):
-    if not medicines:
-        return empty_view()
-    cards = "\n".join(render_medicine_card(medicine) for medicine in medicines)
-    return f'<div class="medicine-grid">{cards}</div>'
-
-
-def render_by_time(medicines):
-    if not medicines:
-        return empty_view()
-
-    tiles = []
-    for index, (label, group) in enumerate(group_by_timing(medicines)):
-        color = GROUP_COLORS[index % len(GROUP_COLORS)]
-        cards = "\n".join(render_medicine_card(medicine) for medicine in group)
-        tiles.append(
-            f"""
-            <div class="tile schedule-tile {color}">
-                <div class="tile-icon {timing_icon(label)}"></div>
-                <div class="tile-title">{escape(label)}</div>
-                <div class="medicine-list">{cards}</div>
-            </div>
-            """
-        )
-
-    return f'<div class="medicine-grid">{"".join(tiles)}</div>'
+def render_group_header(label, color):
+    """Colored timing-group header for the 'By time' view. The cards (with
+    their native controls) are rendered as components beneath it."""
+    return (
+        f'<div class="tile schedule-tile {color} group-header">'
+        f'<div class="tile-icon {timing_icon(label)}"></div>'
+        f'<div class="tile-title">{escape(label)}</div>'
+        "</div>"
+    )
 
 
 def alarm_caveat():
     return (
-        '<div class="alarm-caveat">🔔 Alarms ring only while this GrandmaCare '
-        "page stays open in your browser. Keep the tab open to be reminded.</div>"
+        '<div class="alarm-caveat">🔔 Reminders ring only while this GrandmaCare '
+        "page stays open and connected. Keep the tab open to be reminded.</div>"
     )
-
-
-def render_view(medicines, view):
-    if not medicines:
-        return empty_view()
-    body = render_by_time(medicines) if view == "By time" else render_by_medicine(medicines)
-    return body + alarm_caveat()
 
 
 def render_transcript(transcript):

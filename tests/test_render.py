@@ -2,14 +2,13 @@ from backend.render import (
     GROUP_COLORS,
     empty_transcript,
     empty_view,
-    render_by_medicine,
-    render_by_time,
+    render_card_body,
     render_freestyle,
-    render_medicine_card,
+    render_group_header,
     render_notice,
     render_pill_result,
     render_transcript,
-    render_view,
+    say_text,
     timing_icon,
 )
 
@@ -28,120 +27,59 @@ def med(**overrides):
     return base
 
 
-class TestMedicineCard:
+class TestCardBody:
     def test_contains_name(self):
-        assert "Amoxicillin" in render_medicine_card(med(name="Amoxicillin"))
+        assert "Amoxicillin" in render_card_body(med(name="Amoxicillin"))
 
     def test_name_escaped(self):
-        html = render_medicine_card(med(name="<script>alert(1)</script>"))
+        html = render_card_body(med(name="<script>alert(1)</script>"))
         assert "<script>" not in html
         assert "&lt;script&gt;" in html
 
     def test_timing_badge_present_when_timing_given(self):
-        html = render_medicine_card(med(timing="1-0-1 after food"))
+        html = render_card_body(med(timing="1-0-1 after food"))
         assert "timing-badge" in html
         assert "1-0-1 after food" in html
 
     def test_timing_badge_absent_when_empty(self):
-        assert "timing-badge" not in render_medicine_card(med())
+        assert "timing-badge" not in render_card_body(med())
 
     def test_timing_escaped(self):
-        html = render_medicine_card(med(timing='<img src=x onerror="x">'))
+        html = render_card_body(med(timing='<img src=x onerror="x">'))
         assert "<img" not in html
 
     def test_notes_escaped(self):
-        html = render_medicine_card(med(notes="<b>bold</b>"))
+        html = render_card_body(med(notes="<b>bold</b>"))
         assert "<b>" not in html
 
-
-class TestCardActions:
-    def test_alarm_controls_always_present(self):
-        html = render_medicine_card(med(name="Amoxicillin"))
-        assert "data-gc-alarm-set" in html
-        assert "data-gc-alarm-clear" in html
-        assert 'type="time"' in html
-
-    def test_sound_button_always_present(self):
-        html = render_medicine_card(med(name="Amoxicillin"))
-        assert "sound-btn" in html
-        assert "data-gc-play" in html
-
-    def test_say_prefers_romanized(self):
-        html = render_medicine_card(med(romanized="sokale nin", instruction="take am"))
-        assert 'data-gc-say="sokale nin"' in html
-
-    def test_say_falls_back_to_instruction(self):
-        html = render_medicine_card(med(romanized="", instruction="Take in the morning"))
-        assert 'data-gc-say="Take in the morning"' in html
-
-    def test_say_falls_back_to_name(self):
-        html = render_medicine_card(med(name="Breezy", romanized="", instruction=""))
-        assert 'data-gc-say="Breezy"' in html
-
-    def test_say_text_escaped(self):
-        html = render_medicine_card(med(romanized='<svg onload=x>'))
-        assert "<svg" not in html
-
-    def test_med_name_escaped_in_data_attr(self):
-        html = render_medicine_card(med(name='<svg onload=x>"&'))
-        assert "<svg" not in html
-        assert 'data-gc-med="<svg' not in html
+    def test_no_buttons_or_legacy_js_hooks(self):
+        # Cards are now visual-only; buttons/reminders are native components.
+        html = render_card_body(med(name="Amoxicillin", romanized="sokale nin"))
+        assert "<button" not in html
+        assert "data-gc-" not in html
+        assert 'type="time"' not in html
 
 
-class TestByMedicine:
-    def test_empty_shows_empty_state(self):
-        assert "empty-state" in render_by_medicine([])
+class TestSayText:
+    def test_prefers_romanized(self):
+        assert say_text(med(romanized="sokale nin", instruction="take am")) == "sokale nin"
 
-    def test_one_card_per_medicine(self):
-        html = render_by_medicine([med(name="A"), med(name="B"), med(name="C")])
-        assert html.count("medicine-card") == 3
-        assert "medicine-grid" in html
+    def test_falls_back_to_instruction(self):
+        assert say_text(med(romanized="", instruction="Take in the morning")) == "Take in the morning"
+
+    def test_falls_back_to_name(self):
+        assert say_text(med(name="Breezy", romanized="", instruction="")) == "Breezy"
 
 
-class TestByTime:
-    def test_empty_shows_empty_state(self):
-        assert "empty-state" in render_by_time([])
-
-    def test_group_titles_appear(self):
-        html = render_by_time(
-            [
-                med(name="A", timing_label="At bedtime"),
-                med(name="B", timing_label="Before lunch"),
-            ]
-        )
+class TestGroupHeader:
+    def test_label_and_color(self):
+        html = render_group_header("At bedtime", "purple")
         assert "At bedtime" in html
-        assert "Before lunch" in html
+        assert "purple" in html
+        assert "moon" in html  # timing_icon for bedtime
 
-    def test_colors_cycle(self):
-        medicines = [
-            med(name=f"M{i}", timing_label=f"slot {i}")
-            for i in range(len(GROUP_COLORS) + 1)
-        ]
-        html = render_by_time(medicines)
-        assert html.count(GROUP_COLORS[0]) == 2
-
-    def test_cards_under_correct_group(self):
-        html = render_by_time(
-            [
-                med(name="Alpha", timing_label="Morning"),
-                med(name="Beta", timing_label="Night"),
-            ]
-        )
-        assert html.index("Morning") < html.index("Alpha") < html.index("Night") < html.index("Beta")
-
-    def test_group_label_escaped(self):
-        html = render_by_time([med(name="A", timing_label="<svg onload=x>")])
-        assert "<svg" not in html
-
-
-class TestRenderView:
-    def test_by_time_dispatch(self):
-        medicines = [med(name="A", timing_label="Morning")]
-        assert "schedule-tile" in render_view(medicines, "By time")
-
-    def test_by_medicine_dispatch(self):
-        medicines = [med(name="A")]
-        assert "schedule-tile" not in render_view(medicines, "By medicine")
+    def test_label_escaped(self):
+        assert "<svg" not in render_group_header("<svg onload=x>", "blue")
 
 
 class TestTranscript:
@@ -193,6 +131,9 @@ class TestHelpers:
         assert timing_icon("After lunch") == "clock"
         assert timing_icon("When needed") == "pill"
         assert timing_icon("") == "pill"
+
+    def test_group_colors_available(self):
+        assert len(GROUP_COLORS) >= 1
 
     def test_empty_states(self):
         assert "empty-state" in empty_view()

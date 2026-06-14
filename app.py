@@ -10,26 +10,54 @@ from backend.models import (
     transcribe_prescription,
     translate_cards,
 )
+from backend.reminders import schedule_reminder, split_due
+from backend.schema import group_by_timing
 from backend.render import (
+    GROUP_COLORS,
+    alarm_caveat,
     empty_transcript,
     empty_view,
+    render_card_body,
     render_freestyle,
+    render_group_header,
     render_notice,
     render_pill_result,
     render_transcript,
-    render_view,
+    say_text,
 )
 
 
 @spaces.GPU(duration=60)
 def speak(text):
-    # On-demand TTS: a card's 🔊 button sends its romanized text here and the
-    # returned waveform autoplays in the shared voice player.
+    # On-demand TTS: a card's 🔊 Listen button (or a fired reminder) sends its
+    # romanized text here; the returned waveform autoplays in the voice player.
+    # Returns None for empty text, so it is a cheap no-op on idle reminder ticks.
     return synthesize_voice(text)
 
 
+def add_reminder(alarms, minutes, name, say):
+    # Relative, server-side reminder (no wall-clock/timezone assumptions —
+    # HF Spaces runs in UTC). Pure logic lives in backend.reminders.
+    alarms, minutes = schedule_reminder(alarms, minutes, name, say)
+    return alarms, f"⏰ Reminder set for {name} in {minutes} min"
+
+
+def check_due(alarms):
+    # Runs every timer tick (cheap, no GPU). Splits out reminders whose deadline
+    # has passed, shows the banner, and hands the first due line to due_say —
+    # whose .change fires speak() so the GPU is touched only when one fires.
+    due, remaining = split_due(alarms)
+    if not due:
+        return remaining, gr.update(visible=False), ""
+    names = ", ".join(a["med"] for a in due)
+    banner = gr.update(visible=True, value=f"🔔 Time to take {names}")
+    return remaining, banner, due[0]["say"]
+
+
 @spaces.GPU(duration=180)
-def analyze(image_path, language, view):
+def analyze(image_path, language):
+    # Sets session state; the @gr.render schedule block rebuilds the cards
+    # whenever that state changes (no schedule HTML returned here).
     try:
         transcript = transcribe_prescription(image_path)
     except Exception as exc:
@@ -37,7 +65,6 @@ def analyze(image_path, language, view):
         return [
             message,
             None,
-            empty_view(),
             empty_transcript(),
             json.dumps({"error": str(exc)}, ensure_ascii=False, indent=2),
         ]
@@ -54,7 +81,6 @@ def analyze(image_path, language, view):
         return [
             message,
             state,
-            empty_view(),
             render_transcript(transcript),
             json.dumps({"error": str(exc)}, ensure_ascii=False, indent=2),
         ]
@@ -74,22 +100,10 @@ def analyze(image_path, language, view):
             "I wrote out the schedule as best I could. Please confirm it with a "
             "doctor or pharmacist."
         )
-        return [
-            status,
-            state,
-            render_freestyle(raw_text),
-            render_transcript(transcript),
-            debug_json,
-        ]
+        return [status, state, render_transcript(transcript), debug_json]
 
     status = "Prescription analyzed. Please confirm the schedule with a doctor or pharmacist."
-    return [
-        status,
-        state,
-        render_view(medicines, view),
-        render_transcript(transcript),
-        debug_json,
-    ]
+    return [status, state, render_transcript(transcript), debug_json]
 
 
 @spaces.GPU(duration=120)
@@ -104,16 +118,7 @@ def pill_check(pill_image_path, state):
         return render_notice(f"Sorry, I could not check this medicine yet: {exc}")
 
 
-def rerender(view, state):
-    if not state:
-        return empty_view()
-    if not state.get("medicines"):
-        return render_freestyle(state.get("raw", ""))
-    return render_view(state["medicines"], view)
-
-
 APP_CSS = open("frontend/styles.css", encoding="utf-8").read()
-APP_JS = open("frontend/alarm.js", encoding="utf-8").read()
 
 with gr.Blocks(title="GrandmaCare") as demo:
     session = gr.State(None)
@@ -171,19 +176,72 @@ with gr.Blocks(title="GrandmaCare") as demo:
         show_label=False,
         elem_classes=["view-toggle"],
     )
-    schedule_view = gr.HTML(empty_view())
 
-    # Shared voice player. A card's 🔊 button fills the hidden textbox and
-    # clicks the hidden trigger; speak() returns audio that autoplays here.
+    # Shared voice player. Each card's native 🔊 Listen button (and a fired
+    # reminder) outputs VoxCPM audio here, which autoplays.
     voice_player = gr.Audio(
         label="🔊 Voice",
         autoplay=True,
         interactive=False,
         elem_id="gc-tts-audio",
     )
-    tts_text = gr.Textbox(visible=False, elem_id="gc-tts-text")
-    tts_trigger = gr.Button(visible=False, elem_id="gc-tts-trigger")
-    tts_trigger.click(speak, inputs=[tts_text], outputs=[voice_player])
+
+    # Relative reminders, fully server-side. alarm_state holds pending reminders;
+    # a Timer ticks every 15s and check_due() fires the ones whose deadline passed.
+    alarm_state = gr.State([])
+    reminder_banner = gr.HTML(visible=False, elem_id="gc-reminder-banner")
+    reminder_timer = gr.Timer(15)
+    due_say = gr.State("")
+
+    @gr.render(inputs=[session, view_toggle])
+    def render_schedule(state, view):
+        if not state or not state.get("medicines"):
+            gr.HTML(render_freestyle(state.get("raw", "")) if state else empty_view())
+            return
+
+        medicines = state["medicines"]
+        if view == "By time":
+            groups = list(enumerate(group_by_timing(medicines)))
+        else:
+            groups = [(None, (None, medicines))]
+
+        for index, (label, group) in groups:
+            if label is not None:
+                color = GROUP_COLORS[index % len(GROUP_COLORS)]
+                gr.HTML(render_group_header(label, color))
+            for medicine in group:
+                with gr.Group(elem_classes=["medicine-card-wrap"]):
+                    gr.HTML(render_card_body(medicine))
+                    say_state = gr.State(say_text(medicine))
+                    name_state = gr.State(medicine.get("name", "Medicine"))
+                    with gr.Row():
+                        listen = gr.Button("🔊 Listen", elem_classes=["sound-btn"])
+                        listen.click(speak, inputs=[say_state], outputs=[voice_player])
+                        minutes = gr.Number(
+                            value=30,
+                            precision=0,
+                            minimum=1,
+                            label="Remind in (min)",
+                        )
+                        set_reminder = gr.Button(
+                            "Set reminder", elem_classes=["alarm-set"]
+                        )
+                        feedback = gr.Markdown(elem_classes=["alarm-status"])
+                    set_reminder.click(
+                        add_reminder,
+                        inputs=[alarm_state, minutes, name_state, say_state],
+                        outputs=[alarm_state, feedback],
+                    )
+        gr.HTML(alarm_caveat())
+
+    # Tick: cheap, no GPU. Only an actual due reminder changes due_say, whose
+    # .change fires speak() — so the GPU is never touched on an idle tick.
+    reminder_timer.tick(
+        check_due,
+        inputs=[alarm_state],
+        outputs=[alarm_state, reminder_banner, due_say],
+    )
+    due_say.change(speak, inputs=[due_say], outputs=[voice_player])
 
     with gr.Accordion("Digital copy of your prescription", open=False):
         transcript_view = gr.HTML(empty_transcript())
@@ -226,23 +284,16 @@ with gr.Blocks(title="GrandmaCare") as demo:
 
     analyze_button.click(
         analyze,
-        inputs=[prescription, language, view_toggle],
-        outputs=[status, session, schedule_view, transcript_view, debug],
+        inputs=[prescription, language],
+        outputs=[status, session, transcript_view, debug],
     )
-    view_toggle.change(
-        rerender,
-        inputs=[view_toggle, session],
-        outputs=[schedule_view],
-    )
+    # The @gr.render schedule block re-runs automatically on session/view_toggle
+    # change, so no explicit re-render wiring is needed here.
     pill_button.click(
         pill_check,
         inputs=[pill_image, session],
         outputs=[pill_result],
     )
-
-    # Load the voice + alarm engine on page load. demo.load(js=...) is the
-    # reliable on-load JS hook (launch(js=...) does not run it in Gradio 6).
-    demo.load(None, None, None, js=APP_JS)
 
 
 if __name__ == "__main__":
