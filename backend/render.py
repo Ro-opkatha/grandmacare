@@ -26,8 +26,12 @@ def render_medicine_card(medicine):
     )
     notes = medicine.get("notes", "")
     notes_html = f'<div class="medicine-note">{escape(notes)}</div>' if notes else ""
-    instruction = medicine.get("instruction") or "Instruction translation pending."
-    romanized = medicine.get("romanized") or "Romanized instruction pending."
+    instruction = medicine.get("instruction") or "Instruction pending."
+    instruction_html = f'<div class="medicine-instruction">{escape(instruction)}</div>'
+    romanized = medicine.get("romanized", "")
+    romanized_html = (
+        f'<div class="medicine-romanized">{escape(romanized)}</div>' if romanized else ""
+    )
     dose = medicine.get("dose", "")
     dose_html = f'<div class="medicine-dose">{escape(dose)}</div>' if dose else ""
 
@@ -36,8 +40,8 @@ def render_medicine_card(medicine):
         <div class="medicine-name">{escape(medicine.get("name", "Medicine"))}</div>
         {dose_html}
         {timing_html}
-        <div class="medicine-instruction">{escape(instruction)}</div>
-        <div class="medicine-romanized">{escape(romanized)}</div>
+        {instruction_html}
+        {romanized_html}
         {notes_html}
     </div>
     """

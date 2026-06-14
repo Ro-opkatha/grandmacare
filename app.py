@@ -4,10 +4,10 @@ import gradio as gr
 import spaces
 
 from backend.models import (
-    match_pill,
-    structure_and_translate,
-    transcribe_pill_label,
+    extract_cards,
+    identify_pill,
     transcribe_prescription,
+    translate_cards,
 )
 from backend.render import (
     empty_transcript,
@@ -24,7 +24,7 @@ def voice_coming_later():
     return "Voice guide is coming later. For now, please use the romanized text shown on each medicine card."
 
 
-@spaces.GPU(duration=120)
+@spaces.GPU(duration=180)
 def analyze(image_path, language, view):
     try:
         transcript = transcribe_prescription(image_path)
@@ -39,7 +39,8 @@ def analyze(image_path, language, view):
         ]
 
     try:
-        medicines, raw_text = structure_and_translate(transcript, language)
+        medicines, raw_text = extract_cards(image_path)
+        medicines = translate_cards(medicines, language)
     except Exception as exc:
         state = {"transcript": transcript, "language": language, "medicines": []}
         message = (
@@ -87,14 +88,13 @@ def analyze(image_path, language, view):
     ]
 
 
-@spaces.GPU(duration=90)
+@spaces.GPU(duration=120)
 def pill_check(pill_image_path, state):
     if not state or not state.get("medicines"):
         return render_notice("Please analyze a prescription first, then check your medicine.")
 
     try:
-        label_text = transcribe_pill_label(pill_image_path)
-        result = match_pill(label_text, state["medicines"], state["language"])
+        result = identify_pill(pill_image_path, state["medicines"], state["language"])
         return render_pill_result(result)
     except Exception as exc:
         return render_notice(f"Sorry, I could not check this medicine yet: {exc}")
