@@ -1,22 +1,21 @@
 () => {
     // GrandmaCare client-side voice + alarm engine.
-    // Loaded once via gr.Blocks(js=...). Cards carry only plain markup with
-    // data-gc-* attributes; everything here is driven by event delegation, so
-    // it works regardless of how Gradio sanitizes the card HTML blob.
+    // Loaded once via demo.load(js=...). Cards carry only plain markup with
+    // data-gc-* attributes; everything here runs by event delegation, so it
+    // works regardless of how Gradio sanitizes the card HTML blob.
     if (window.__gcAlarmReady) return;
     window.__gcAlarmReady = true;
 
     const STORE_KEY = "gc_alarms";
-    let primedAudio = null;       // unlocked on first user gesture
-    let lastFiredMinute = {};     // medName -> "HH:MM" already rung this minute
+    let audioCtx = null;
+    const lastFiredMinute = {};   // medName -> "HH:MM" already rung this minute
 
     const loadAlarms = () => {
         try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
         catch (e) { return {}; }
     };
     const saveAlarms = (alarms) => {
-        try { localStorage.setItem(STORE_KEY, JSON.stringify(alarms)); }
-        catch (e) { /* localStorage full or blocked; alarm still rings this session */ }
+        try { localStorage.setItem(STORE_KEY, JSON.stringify(alarms)); } catch (e) {}
     };
 
     const nowHHMM = () => {
@@ -25,39 +24,43 @@
         return p(d.getHours()) + ":" + p(d.getMinutes());
     };
 
-    // Prime audio on a real user gesture so the scheduled (gestureless) ring
-    // is not blocked by the browser's autoplay policy.
-    const primeFrom = (src) => {
-        try {
-            if (!primedAudio) primedAudio = new Audio();
-            if (src) primedAudio.src = src;
-            primedAudio.muted = true;
-            const p = primedAudio.play();
-            if (p && p.then) p.then(() => { primedAudio.pause(); primedAudio.muted = false; }).catch(() => {});
-        } catch (e) {}
+    // --- Bridge to the server: set a hidden Gradio textbox, click its button.
+    const setGradioText = (rootId, value) => {
+        const el = document.querySelector(rootId + " textarea") ||
+                   document.querySelector(rootId + " input");
+        if (!el) return false;
+        const proto = el.tagName === "TEXTAREA"
+            ? window.HTMLTextAreaElement.prototype
+            : window.HTMLInputElement.prototype;
+        const setter = Object.getOwnPropertyDescriptor(proto, "value").set;
+        setter.call(el, value);
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        return true;
+    };
+    const speak = (text) => {
+        if (!text) return;
+        if (!setGradioText("#gc-tts-text", text)) return;
+        // Let Gradio register the new value before firing the click.
+        setTimeout(() => {
+            const btn = document.querySelector("#gc-tts-trigger button") ||
+                        document.querySelector("#gc-tts-trigger");
+            if (btn) btn.click();
+        }, 80);
     };
 
-    const playSrc = (src) => {
-        if (!src) { beep(); return; }
-        try {
-            const a = new Audio(src);
-            const p = a.play();
-            if (p && p.catch) p.catch(() => beep());
-        } catch (e) { beep(); }
-    };
-
-    // Fallback chime when no clip is available or audio is blocked.
+    // Short fallback chime so the alarm is audible even before TTS arrives.
     const beep = () => {
         try {
             const Ctx = window.AudioContext || window.webkitAudioContext;
             if (!Ctx) return;
-            const ctx = new Ctx();
-            const osc = ctx.createOscillator();
-            const gain = ctx.createGain();
-            osc.connect(gain); gain.connect(ctx.destination);
+            if (!audioCtx) audioCtx = new Ctx();
+            if (audioCtx.state === "suspended") audioCtx.resume();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
             osc.frequency.value = 880; gain.gain.value = 0.2;
             osc.start();
-            osc.stop(ctx.currentTime + 0.6);
+            osc.stop(audioCtx.currentTime + 0.6);
         } catch (e) {}
     };
 
@@ -73,8 +76,9 @@
         return el;
     };
 
-    const ring = (medName, src) => {
-        playSrc(src);
+    const ring = (medName, sayText) => {
+        beep();
+        speak(sayText);
         const el = banner();
         el.textContent = "🔔 Time to take " + medName + "  (tap to dismiss)";
         el.style.display = "block";
@@ -85,8 +89,7 @@
         } catch (e) {}
     };
 
-    // Re-apply saved alarm times to inputs after any re-render (view toggle,
-    // new analyze). Runs on a MutationObserver + initial pass.
+    // Re-apply saved alarm times/status to inputs after any re-render.
     const syncInputs = () => {
         const alarms = loadAlarms();
         document.querySelectorAll("[data-gc-card]").forEach((card) => {
@@ -95,45 +98,48 @@
             const status = card.querySelector("[data-gc-alarm-status]");
             const saved = alarms[med];
             if (input && saved && saved.time && !input.value) input.value = saved.time;
-            if (status) status.textContent = saved && saved.time ? "Alarm set for " + saved.time : "";
+            if (status) status.textContent = saved && saved.time ? "⏰ Alarm set for " + saved.time : "";
         });
     };
 
     document.addEventListener("click", (ev) => {
         const playBtn = ev.target.closest("[data-gc-play]");
         if (playBtn) {
-            const src = playBtn.getAttribute("data-gc-src");
-            primeFrom(src);
-            playSrc(src);
+            // Unlock audio on this user gesture so the later alarm beep is allowed.
+            beep();
+            speak(playBtn.getAttribute("data-gc-say"));
             return;
         }
 
         const setBtn = ev.target.closest("[data-gc-alarm-set]");
         if (setBtn) {
             const med = setBtn.getAttribute("data-gc-med");
-            const actions = setBtn.closest("[data-gc-card]");
-            const input = actions && actions.querySelector("[data-gc-alarm-input]");
-            const status = actions && actions.querySelector("[data-gc-alarm-status]");
+            const card = setBtn.closest("[data-gc-card]");
+            const input = card && card.querySelector("[data-gc-alarm-input]");
+            const status = card && card.querySelector("[data-gc-alarm-status]");
             const time = input && input.value;
             if (!time) { if (status) status.textContent = "Please choose a time first."; return; }
-            const card = setBtn.closest(".medicine-card");
-            const soundBtn = card && card.querySelector("[data-gc-play]");
-            const src = soundBtn ? soundBtn.getAttribute("data-gc-src") : "";
+            const playBtn = card && card.querySelector("[data-gc-play]");
+            const say = playBtn ? playBtn.getAttribute("data-gc-say") : "";
             const alarms = loadAlarms();
-            alarms[med] = { time: time, audio: src || "" };
+            alarms[med] = { time: time, say: say || "" };
             saveAlarms(alarms);
-            primeFrom(src);
-            try { if (window.Notification && Notification.permission === "default") Notification.requestPermission(); } catch (e) {}
-            if (status) status.textContent = "Alarm set for " + time;
+            beep();   // also unlocks audio for the scheduled ring
+            try {
+                if (window.Notification && Notification.permission === "default") {
+                    Notification.requestPermission();
+                }
+            } catch (e) {}
+            if (status) status.textContent = "⏰ Alarm set for " + time;
             return;
         }
 
         const clearBtn = ev.target.closest("[data-gc-alarm-clear]");
         if (clearBtn) {
             const med = clearBtn.getAttribute("data-gc-med");
-            const actions = clearBtn.closest("[data-gc-card]");
-            const input = actions && actions.querySelector("[data-gc-alarm-input]");
-            const status = actions && actions.querySelector("[data-gc-alarm-status]");
+            const card = clearBtn.closest("[data-gc-card]");
+            const input = card && card.querySelector("[data-gc-alarm-input]");
+            const status = card && card.querySelector("[data-gc-alarm-status]");
             const alarms = loadAlarms();
             delete alarms[med];
             saveAlarms(alarms);
@@ -151,13 +157,13 @@
             if (!a || a.time !== current) return;
             if (lastFiredMinute[med] === current) return;
             lastFiredMinute[med] = current;
-            ring(med, a.audio);
+            ring(med, a.say);
         });
     };
 
-    const observer = new MutationObserver(() => syncInputs());
-    observer.observe(document.body, { childList: true, subtree: true });
+    new MutationObserver(() => syncInputs())
+        .observe(document.body, { childList: true, subtree: true });
     syncInputs();
-    setInterval(tick, 20000);
+    setInterval(tick, 15000);
     tick();
 }

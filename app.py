@@ -4,9 +4,9 @@ import gradio as gr
 import spaces
 
 from backend.models import (
-    add_card_audio,
     extract_cards,
     identify_pill,
+    synthesize_voice,
     transcribe_prescription,
     translate_cards,
 )
@@ -21,15 +21,14 @@ from backend.render import (
 )
 
 
-def _debug_medicines(medicines):
-    # Drop the base64 audio so the JSON panel stays readable.
-    return [
-        {**m, "audio": "<audio>"} if m.get("audio") else m
-        for m in medicines
-    ]
+@spaces.GPU(duration=60)
+def speak(text):
+    # On-demand TTS: a card's 🔊 button sends its romanized text here and the
+    # returned waveform autoplays in the shared voice player.
+    return synthesize_voice(text)
 
 
-@spaces.GPU(duration=240)
+@spaces.GPU(duration=180)
 def analyze(image_path, language, view):
     try:
         transcript = transcribe_prescription(image_path)
@@ -46,7 +45,6 @@ def analyze(image_path, language, view):
     try:
         medicines, raw_text = extract_cards(image_path)
         medicines = translate_cards(medicines, language)
-        medicines = add_card_audio(medicines)
     except Exception as exc:
         state = {"transcript": transcript, "language": language, "medicines": []}
         message = (
@@ -68,9 +66,7 @@ def analyze(image_path, language, view):
         "raw": raw_text,
     }
     debug_json = json.dumps(
-        {"medicines": _debug_medicines(medicines), "raw": raw_text},
-        ensure_ascii=False,
-        indent=2,
+        {"medicines": medicines, "raw": raw_text}, ensure_ascii=False, indent=2
     )
 
     if not medicines:
@@ -177,6 +173,18 @@ with gr.Blocks(title="GrandmaCare") as demo:
     )
     schedule_view = gr.HTML(empty_view())
 
+    # Shared voice player. A card's 🔊 button fills the hidden textbox and
+    # clicks the hidden trigger; speak() returns audio that autoplays here.
+    voice_player = gr.Audio(
+        label="🔊 Voice",
+        autoplay=True,
+        interactive=False,
+        elem_id="gc-tts-audio",
+    )
+    tts_text = gr.Textbox(visible=False, elem_id="gc-tts-text")
+    tts_trigger = gr.Button(visible=False, elem_id="gc-tts-trigger")
+    tts_trigger.click(speak, inputs=[tts_text], outputs=[voice_player])
+
     with gr.Accordion("Digital copy of your prescription", open=False):
         transcript_view = gr.HTML(empty_transcript())
 
@@ -232,6 +240,10 @@ with gr.Blocks(title="GrandmaCare") as demo:
         outputs=[pill_result],
     )
 
+    # Load the voice + alarm engine on page load. demo.load(js=...) is the
+    # reliable on-load JS hook (launch(js=...) does not run it in Gradio 6).
+    demo.load(None, None, None, js=APP_JS)
+
 
 if __name__ == "__main__":
-    demo.launch(css=APP_CSS, js=APP_JS)
+    demo.launch(css=APP_CSS)

@@ -1,30 +1,19 @@
 from backend import models
 
 
-def test_add_card_audio_prefers_romanized(monkeypatch):
-    monkeypatch.setattr(models, "synthesize", lambda text: f"SPOKE:{text}")
-
-    cards = [
-        {"name": "A", "instruction": "Take one at night", "romanized": "rate ekti nin"},
-        {"name": "B", "instruction": "Take after food", "romanized": ""},
-    ]
-    result = models.add_card_audio(cards)
-
-    assert result[0]["audio"] == "SPOKE:rate ekti nin"   # romanized wins
-    assert result[1]["audio"] == "SPOKE:Take after food"  # falls back to instruction
+def test_synthesize_voice_empty_returns_none():
+    assert models.synthesize_voice("") is None
+    assert models.synthesize_voice(None) is None
+    assert models.synthesize_voice("   ") is None
 
 
-def test_add_card_audio_survives_synthesis_error(monkeypatch):
-    def boom(text):
-        raise RuntimeError("tts down")
+def test_synthesize_voice_returns_sr_and_wav(monkeypatch):
+    class FakeModel:
+        def generate(self, text):
+            return [0.0, 0.1, -0.1]  # stand-in waveform
 
-    monkeypatch.setattr(models, "synthesize", boom)
-    cards = [{"name": "A", "instruction": "x", "romanized": ""}]
+    monkeypatch.setattr(models, "_load_tts_model", lambda: FakeModel())
+    result = models.synthesize_voice("sokale ekti nin")
 
-    result = models.add_card_audio(cards)
-    assert result[0]["audio"] == ""
-
-
-def test_synthesize_empty_returns_blank():
-    assert models.synthesize("") == ""
-    assert models.synthesize(None) == ""
+    assert result == (models.VOX_SAMPLE_RATE, [0.0, 0.1, -0.1])
+    assert models.VOX_SAMPLE_RATE == 16000

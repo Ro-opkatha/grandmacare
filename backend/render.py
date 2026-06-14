@@ -20,18 +20,20 @@ def timing_icon(label):
 def render_card_actions(medicine):
     """Voice button + alarm controls. Pure markup + data-* attributes; the
     JS engine (frontend/alarm.js) drives them via event delegation, so this
-    stays robust even if Gradio sanitizes the HTML blob (no inline JS here)."""
+    stays robust even if Gradio sanitizes the HTML blob (no inline JS here).
+
+    The 🔊 button carries the text to speak in data-gc-say (romanized line for
+    Hindi/Bengali, else the English instruction, else the name). Clicking it
+    asks the server to synthesize that text on demand with VoxCPM."""
     name = escape(medicine.get("name", "Medicine"))
-    audio = medicine.get("audio", "")
-    sound_html = (
-        f'<button type="button" class="sound-btn" data-gc-play '
-        f'data-gc-src="{escape(audio)}">🔊 Listen</button>'
-        if audio
-        else ""
+    say = (
+        medicine.get("romanized")
+        or medicine.get("instruction")
+        or medicine.get("name", "Medicine")
     )
     return f"""
         <div class="card-actions" data-gc-card="{name}">
-            {sound_html}
+            <button type="button" class="sound-btn" data-gc-play data-gc-say="{escape(say)}">🔊 Listen</button>
             <div class="alarm-row">
                 <input type="time" class="alarm-input" data-gc-alarm-input aria-label="Alarm time for {name}">
                 <button type="button" class="alarm-set" data-gc-alarm-set data-gc-med="{name}">Set alarm</button>

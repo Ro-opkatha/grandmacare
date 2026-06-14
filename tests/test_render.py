@@ -61,13 +61,26 @@ class TestCardActions:
         assert "data-gc-alarm-clear" in html
         assert 'type="time"' in html
 
-    def test_sound_button_present_when_audio(self):
-        html = render_medicine_card(med(audio="data:audio/wav;base64,AAAA"))
+    def test_sound_button_always_present(self):
+        html = render_medicine_card(med(name="Amoxicillin"))
         assert "sound-btn" in html
-        assert "data:audio/wav;base64,AAAA" in html
+        assert "data-gc-play" in html
 
-    def test_sound_button_absent_without_audio(self):
-        assert "sound-btn" not in render_medicine_card(med())
+    def test_say_prefers_romanized(self):
+        html = render_medicine_card(med(romanized="sokale nin", instruction="take am"))
+        assert 'data-gc-say="sokale nin"' in html
+
+    def test_say_falls_back_to_instruction(self):
+        html = render_medicine_card(med(romanized="", instruction="Take in the morning"))
+        assert 'data-gc-say="Take in the morning"' in html
+
+    def test_say_falls_back_to_name(self):
+        html = render_medicine_card(med(name="Breezy", romanized="", instruction=""))
+        assert 'data-gc-say="Breezy"' in html
+
+    def test_say_text_escaped(self):
+        html = render_medicine_card(med(romanized='<svg onload=x>'))
+        assert "<svg" not in html
 
     def test_med_name_escaped_in_data_attr(self):
         html = render_medicine_card(med(name='<svg onload=x>"&'))
