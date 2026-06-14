@@ -282,3 +282,30 @@ body {
         font-size: 24px;
     }
 }
+
+/* Force dark text on light-background cards so dark mode cannot turn it white. */
+.medicine-card,
+.medicine-card .medicine-name,
+.medicine-card .medicine-instruction,
+.medicine-card.freestyle,
+.transcript-box,
+.pill-result,
+.pill-result .medicine-name,
+.pill-result .medicine-instruction {
+    color: #243142 !important;
+}
+
+.medicine-card .medicine-dose,
+.medicine-card .medicine-note,
+.empty-state.dark {
+    color: #5a6575 !important;
+}
+
+.medicine-card .medicine-romanized,
+.pill-result .medicine-romanized {
+    color: #29384d !important;
+}
+
+.timing-badge {
+    color: #6b5b1d !important;
+}
