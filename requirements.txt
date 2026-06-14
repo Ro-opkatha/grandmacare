@@ -16,3 +16,5 @@ sentencepiece
 protobuf
 decord
 scipy
+voxcpm
+soundfile

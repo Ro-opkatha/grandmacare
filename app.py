@@ -4,6 +4,7 @@ import gradio as gr
 import spaces
 
 from backend.models import (
+    add_card_audio,
     extract_cards,
     identify_pill,
     transcribe_prescription,
@@ -20,11 +21,15 @@ from backend.render import (
 )
 
 
-def voice_coming_later():
-    return "Voice guide is coming later. For now, please use the romanized text shown on each medicine card."
+def _debug_medicines(medicines):
+    # Drop the base64 audio so the JSON panel stays readable.
+    return [
+        {**m, "audio": "<audio>"} if m.get("audio") else m
+        for m in medicines
+    ]
 
 
-@spaces.GPU(duration=180)
+@spaces.GPU(duration=240)
 def analyze(image_path, language, view):
     try:
         transcript = transcribe_prescription(image_path)
@@ -41,6 +46,7 @@ def analyze(image_path, language, view):
     try:
         medicines, raw_text = extract_cards(image_path)
         medicines = translate_cards(medicines, language)
+        medicines = add_card_audio(medicines)
     except Exception as exc:
         state = {"transcript": transcript, "language": language, "medicines": []}
         message = (
@@ -62,7 +68,9 @@ def analyze(image_path, language, view):
         "raw": raw_text,
     }
     debug_json = json.dumps(
-        {"medicines": medicines, "raw": raw_text}, ensure_ascii=False, indent=2
+        {"medicines": _debug_medicines(medicines), "raw": raw_text},
+        ensure_ascii=False,
+        indent=2,
     )
 
     if not medicines:
@@ -108,10 +116,10 @@ def rerender(view, state):
     return render_view(state["medicines"], view)
 
 
-with gr.Blocks(
-    title="GrandmaCare",
-    css=open("frontend/styles.css", encoding="utf-8").read(),
-) as demo:
+APP_CSS = open("frontend/styles.css", encoding="utf-8").read()
+APP_JS = open("frontend/alarm.js", encoding="utf-8").read()
+
+with gr.Blocks(title="GrandmaCare") as demo:
     session = gr.State(None)
 
     gr.HTML(
@@ -191,22 +199,15 @@ with gr.Blocks(
             pill_button = gr.Button("Check this medicine", variant="primary")
             pill_result = gr.HTML("")
 
-    with gr.Row():
-        voice_button = gr.Button(
-            "🔊\nVoice Guide\nComing Later",
-            elem_classes=["voice-button"],
-        )
-        gr.HTML(
-            """
-            <div class="tile purple control-tile">
-                <div class="tile-icon glasses"></div>
-                <div class="tile-title">Grandma Mode</div>
-                <div class="tile-subtitle">Large Text</div>
-            </div>
-            """
-        )
-
-    voice_status = gr.Textbox(show_label=False, interactive=False, visible=True)
+    gr.HTML(
+        """
+        <div class="tile purple control-tile">
+            <div class="tile-icon glasses"></div>
+            <div class="tile-title">Grandma Mode</div>
+            <div class="tile-subtitle">Large Text</div>
+        </div>
+        """
+    )
 
     with gr.Accordion("Final JSON", open=False):
         debug = gr.Code(
@@ -230,8 +231,7 @@ with gr.Blocks(
         inputs=[pill_image, session],
         outputs=[pill_result],
     )
-    voice_button.click(voice_coming_later, outputs=voice_status)
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(css=APP_CSS, js=APP_JS)

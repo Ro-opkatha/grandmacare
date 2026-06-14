@@ -17,6 +17,31 @@ def timing_icon(label):
     return "pill"
 
 
+def render_card_actions(medicine):
+    """Voice button + alarm controls. Pure markup + data-* attributes; the
+    JS engine (frontend/alarm.js) drives them via event delegation, so this
+    stays robust even if Gradio sanitizes the HTML blob (no inline JS here)."""
+    name = escape(medicine.get("name", "Medicine"))
+    audio = medicine.get("audio", "")
+    sound_html = (
+        f'<button type="button" class="sound-btn" data-gc-play '
+        f'data-gc-src="{escape(audio)}">🔊 Listen</button>'
+        if audio
+        else ""
+    )
+    return f"""
+        <div class="card-actions" data-gc-card="{name}">
+            {sound_html}
+            <div class="alarm-row">
+                <input type="time" class="alarm-input" data-gc-alarm-input aria-label="Alarm time for {name}">
+                <button type="button" class="alarm-set" data-gc-alarm-set data-gc-med="{name}">Set alarm</button>
+                <button type="button" class="alarm-clear" data-gc-alarm-clear data-gc-med="{name}">Clear</button>
+                <span class="alarm-status" data-gc-alarm-status></span>
+            </div>
+        </div>
+    """
+
+
 def render_medicine_card(medicine):
     timing = medicine.get("timing", "")
     timing_html = (
@@ -43,6 +68,7 @@ def render_medicine_card(medicine):
         {instruction_html}
         {romanized_html}
         {notes_html}
+        {render_card_actions(medicine)}
     </div>
     """
 
@@ -75,10 +101,18 @@ def render_by_time(medicines):
     return f'<div class="medicine-grid">{"".join(tiles)}</div>'
 
 
+def alarm_caveat():
+    return (
+        '<div class="alarm-caveat">🔔 Alarms ring only while this GrandmaCare '
+        "page stays open in your browser. Keep the tab open to be reminded.</div>"
+    )
+
+
 def render_view(medicines, view):
-    if view == "By time":
-        return render_by_time(medicines)
-    return render_by_medicine(medicines)
+    if not medicines:
+        return empty_view()
+    body = render_by_time(medicines) if view == "By time" else render_by_medicine(medicines)
+    return body + alarm_caveat()
 
 
 def render_transcript(transcript):

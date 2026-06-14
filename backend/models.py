@@ -24,8 +24,11 @@ try:
 except Exception as exc:
     AYA_MODEL_ERROR = exc
 
+VOXCPM_MODEL_ID = "openbmb/VoxCPM-0.5B"
+
 _vision_model = None
 _vision_tokenizer = None
+_tts_model = None
 
 
 def _load_vision_model():
@@ -114,6 +117,54 @@ def extract_cards(image_path):
         raise ValueError("Please upload a prescription photo first.")
     text = _vision_chat(image_path, EXTRACT_CARDS_PROMPT)
     return parse_cards_text(text), text
+
+
+def _load_tts_model():
+    global _tts_model
+    if _tts_model is not None:
+        return _tts_model
+
+    from voxcpm import VoxCPM
+
+    # Skip the denoiser: we synthesize clean instruction text, not noisy mic input.
+    _tts_model = VoxCPM.from_pretrained(VOXCPM_MODEL_ID, load_denoiser=False)
+    return _tts_model
+
+
+def synthesize(text):
+    """Render `text` to speech and return a base64 WAV data-URI (or "" if empty)."""
+    text = str(text or "").strip()
+    if not text:
+        return ""
+
+    import base64
+    import io
+
+    import soundfile as sf
+
+    model = _load_tts_model()
+    wav = model.generate(text=text)
+
+    buffer = io.BytesIO()
+    sf.write(buffer, wav, model.tts_model.sample_rate, format="WAV")
+    encoded = base64.b64encode(buffer.getvalue()).decode("ascii")
+    return "data:audio/wav;base64," + encoded
+
+
+def add_card_audio(cards):
+    """Attach a spoken-instruction clip to each card under card["audio"].
+
+    VoxCPM is English/Chinese-only, so we speak the romanized (Latin) line when
+    present — it spells out the Hindi/Bengali sounds — and fall back to the
+    English instruction otherwise.
+    """
+    for card in cards or []:
+        spoken = card.get("romanized") or card.get("instruction") or ""
+        try:
+            card["audio"] = synthesize(spoken)
+        except Exception:
+            card["audio"] = ""
+    return cards
 
 
 def _create_llm():

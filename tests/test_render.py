@@ -54,6 +54,27 @@ class TestMedicineCard:
         assert "<b>" not in html
 
 
+class TestCardActions:
+    def test_alarm_controls_always_present(self):
+        html = render_medicine_card(med(name="Amoxicillin"))
+        assert "data-gc-alarm-set" in html
+        assert "data-gc-alarm-clear" in html
+        assert 'type="time"' in html
+
+    def test_sound_button_present_when_audio(self):
+        html = render_medicine_card(med(audio="data:audio/wav;base64,AAAA"))
+        assert "sound-btn" in html
+        assert "data:audio/wav;base64,AAAA" in html
+
+    def test_sound_button_absent_without_audio(self):
+        assert "sound-btn" not in render_medicine_card(med())
+
+    def test_med_name_escaped_in_data_attr(self):
+        html = render_medicine_card(med(name='<svg onload=x>"&'))
+        assert "<svg" not in html
+        assert 'data-gc-med="<svg' not in html
+
+
 class TestByMedicine:
     def test_empty_shows_empty_state(self):
         assert "empty-state" in render_by_medicine([])

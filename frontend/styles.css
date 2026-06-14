@@ -309,3 +309,118 @@ body {
 .timing-badge {
     color: #6b5b1d !important;
 }
+
+/* --- Voice + alarm controls on each card --- */
+.card-actions {
+    border-top: 1px solid #d7dde6;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    margin-top: 14px;
+    padding-top: 12px;
+}
+
+.sound-btn {
+    background: #00897b;
+    border: 0;
+    border-radius: 10px;
+    color: white !important;
+    cursor: pointer;
+    font-size: 19px;
+    font-weight: 800;
+    padding: 10px 16px;
+}
+
+.sound-btn:hover {
+    background: #00796b;
+}
+
+.alarm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+}
+
+.alarm-input {
+    border: 2px solid #b9c2cf;
+    border-radius: 10px;
+    color: #243142 !important;
+    background: white !important;
+    font-size: 18px;
+    padding: 8px 10px;
+}
+
+.alarm-set,
+.alarm-clear {
+    border: 0;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 700;
+    padding: 9px 14px;
+}
+
+.alarm-set {
+    background: #8e24aa;
+    color: white !important;
+}
+
+.alarm-set:hover {
+    background: #7b1fa2;
+}
+
+.alarm-clear {
+    background: #eceff3;
+    color: #5a6575 !important;
+}
+
+.alarm-clear:hover {
+    background: #dde3ea;
+}
+
+.alarm-status {
+    color: #5a6575 !important;
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.alarm-caveat {
+    color: #5a6575;
+    font-size: 16px;
+    line-height: 1.4;
+    margin-top: 16px;
+    text-align: center;
+}
+
+.alarm-banner {
+    display: none;
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    z-index: 9999;
+    background: #8e24aa;
+    color: white;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    font-size: 22px;
+    font-weight: 800;
+    padding: 18px 26px;
+    max-width: 90vw;
+    text-align: center;
+}
+
+/* Force readable colors so dark mode cannot wash these out. */
+.card-actions .alarm-status,
+.alarm-caveat {
+    color: #5a6575 !important;
+}
+
+.card-actions .alarm-input {
+    color: #243142 !important;
+    background: white !important;
+}
